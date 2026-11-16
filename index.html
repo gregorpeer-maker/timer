@@ -123,6 +123,13 @@
   .line label { color: var(--muted); }
   .line input[type="number"] { width: 68px; text-align: right; }
   .note { font-size: 12px; color: var(--muted); margin: 0; }
+  .line input[type="text"] { flex: 1 1 140px; }
+  .favs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .fav { display: inline-flex; max-width: 100%; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .fav button { border: 0; border-radius: 0; padding: 7px 10px; min-width: 0; }
+  .fav button:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fav button + button { border-left: 1px solid var(--line); color: var(--muted); }
+  .fav button[data-arm] { color: var(--crit); }
 
   @media (max-width: 860px) {
     .grid { grid-template-columns: minmax(0, 1fr); }
@@ -234,6 +241,12 @@
     <h2>Stundenplan <span id="total"></span></h2>
     <div class="rows" id="rows"></div>
     <div class="setup" id="setup">
+      <div class="line">
+        <label for="favName">Favorit</label>
+        <input id="favName" type="text" maxlength="40" placeholder="Name, z. B. 3A Elektrotechnik">
+        <button id="favSave" title="Aktuellen Stundenplan unter diesem Namen speichern">★ Speichern</button>
+      </div>
+      <div class="favs" id="favs"></div>
       <div class="line">
         <button id="addBtn">+ Phase</button>
         <button id="soundBtn" class="on">Ton: an</button>
@@ -414,7 +427,52 @@
     $('endClock').disabled = $('endClear').disabled = !idle;
     $('endClock').value = S.endClock || '';
     $('soundBtn').textContent = 'Ton: ' + (S.sound ? 'an' : 'aus'); $('soundBtn').classList.toggle('on', S.sound);
+    renderFavs();
   }
+  // ---------- Favoriten: gespeicherte Stundenpläne ----------
+  const FKEY = 'unterrichtstimer.favs';
+  let favs = [];
+  try {
+    const j = JSON.parse(localStorage.getItem(FKEY) || '[]');
+    if (Array.isArray(j)) favs = j.filter(f => f && typeof f.name === 'string' && Array.isArray(f.phases) && f.phases.length
+      && f.phases.every(p => p && typeof p.name === 'string' && p.sec > 0));
+  } catch (e) {}
+  const saveFavs = () => { try { localStorage.setItem(FKEY, JSON.stringify(favs)); } catch (e) {} };
+  function renderFavs() {
+    const box = $('favs'); box.textContent = '';
+    if (!favs.length) {
+      const n = document.createElement('p'); n.className = 'note';
+      n.textContent = 'Noch keine Favoriten. Stundenplan einstellen, Namen eingeben und speichern.'; box.appendChild(n); return;
+    }
+    favs.forEach((f, i) => {
+      const w = document.createElement('span'); w.className = 'fav';
+      const load = document.createElement('button'), del = document.createElement('button');
+      load.textContent = f.name; load.disabled = S.status !== 'idle';
+      load.title = `${minTxt(f.phases.reduce((a, p) => a + p.sec, 0))} · ${f.phases.length} ${f.phases.length === 1 ? 'Phase' : 'Phasen'}`
+        + (f.endClock ? ` · Ende ${f.endClock}` : '') + (load.disabled ? ' – laden erst nach dem Zurücksetzen' : ' – laden');
+      load.onclick = () => {
+        S.phases = f.phases.map(p => ({ name: p.name, sec: p.sec })); S.endClock = f.endClock || '';
+        $('favName').value = f.name; save(); renderList(); tick();
+      };
+      del.textContent = '✕'; del.title = 'Favorit löschen'; del.setAttribute('aria-label', 'Favorit ' + f.name + ' löschen');
+      del.onclick = () => {
+        if (del.dataset.arm) { favs.splice(i, 1); saveFavs(); renderFavs(); return; }
+        del.dataset.arm = '1'; del.textContent = 'Löschen?';
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.arm; del.textContent = '✕'; } }, 3000);
+      };
+      w.append(load, del); box.appendChild(w);
+    });
+  }
+  function saveFav() {
+    const name = $('favName').value.trim();
+    if (!name) { $('favName').focus(); return; }
+    const fav = { name, phases: (S.orig || S.phases).map(p => ({ name: p.name, sec: p.sec })), endClock: S.endClock || '' };
+    const i = favs.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
+    if (i >= 0) favs[i] = fav; else favs.push(fav);
+    saveFavs(); renderFavs();
+    $('favSave').textContent = '★ Gespeichert'; setTimeout(() => { $('favSave').textContent = '★ Speichern'; }, 1500);
+  }
+
   function move(i, d) { const j = i + d; [S.phases[i], S.phases[j]] = [S.phases[j], S.phases[i]]; save(); renderList(); tick(); }
   function del(i) { S.phases.splice(i, 1); save(); renderList(); tick(); }
 
@@ -618,6 +676,8 @@
   $('endClock').onchange = () => { S.endClock = $('endClock').value; save(); tick(); };
   $('endClear').onclick = () => { S.endClock = ''; save(); renderList(); tick(); };
   $('time').addEventListener('dblclick', toggleFs);
+  $('favSave').onclick = saveFav;
+  $('favName').addEventListener('keydown', e => { if (e.key === 'Enter') saveFav(); });
 
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
