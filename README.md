@@ -29,6 +29,7 @@ Zip entpacken und `Unterrichtstimer.exe` starten. Das Programm ist nicht signier
 - **Schieberegler:** Deckkraft des Hintergrunds, ganz links ist er vollständig durchsichtig.
 - **Größe:** wechselt zwischen klein, mittel und groß.
 - **Planen:** großes Fenster zum Bearbeiten des Stundenplans; **Mini-Ansicht** führt zurück.
+- **Vollbild** (oder Taste F): Timer über den ganzen Bildschirm, z. B. für den Beamer. Esc oder F führt zurück.
 - **✕** beendet das Programm. Plan und laufende Stunde bleiben gespeichert.
 
 ## Selbst bauen

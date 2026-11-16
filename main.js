@@ -25,8 +25,11 @@ function widgetBounds(size) {
 
 function setMode(m, size) {
   if (!win) return;
-  mode = m === 'plan' ? 'plan' : 'widget';
-  if (mode === 'widget') {
+  mode = m === 'plan' || m === 'full' ? m : 'widget';
+  if (mode === 'full') {                               // Vollbild: ganzer Bildschirm inklusive Taskleiste
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.setBounds(screen.getDisplayMatching(win.getBounds()).bounds);
+  } else if (mode === 'widget') {
     win.setAlwaysOnTop(true, 'screen-saver');          // auch über Vollbild-Präsentationen
     win.setBounds(widgetBounds(size));
   } else {
