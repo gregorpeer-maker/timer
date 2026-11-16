@@ -1,0 +1,35 @@
+name: Windows-App bauen
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - name: Zip packen
+        run: cd dist && mv Unterrichtstimer-win32-x64 Unterrichtstimer && zip -qr ../Unterrichtstimer-Windows.zip Unterrichtstimer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Unterrichtstimer-Windows
+          path: Unterrichtstimer-Windows.zip
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows --yes --cleanup-tag || true
+          gh release create windows Unterrichtstimer-Windows.zip \
+            --target "$GITHUB_SHA" \
+            --title "Unterrichtstimer für Windows" \
+            --notes "Zip entpacken und Unterrichtstimer.exe starten. Windows zeigt beim ersten Start eine Warnung, weil das Programm nicht signiert ist: Weitere Informationen > Trotzdem ausführen."
