@@ -215,6 +215,8 @@
   .slot.has { box-shadow: inset 3px 0 0 var(--c); }
   .slot.aus { opacity: .7; }
   .slot .badge { align-self: flex-start; }
+  .slot .fn { color: var(--c, var(--fg)); font-size: 14px; line-height: 1.25; }
+  .slot .raw { font-size: 10px; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .pz { background: transparent; }
   .bellrow { border: 1px solid var(--line); background: var(--panel2); }
   dialog { border-radius: 20px; background: var(--panel); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
@@ -268,6 +270,7 @@
   let S = laden();
   let syncTimer = null;
   function save(ohneSync) {
+    E.setExtra(S.faecher);
     try { localStorage.setItem(E.KEY, JSON.stringify(S)); } catch (e) { E.toast({ art: 'ende', titel: 'Speichern fehlgeschlagen', text: 'Der Browser erlaubt keinen Speicher (privates Fenster?).' }); }
     if (!ohneSync && fh) { clearTimeout(syncTimer); syncTimer = setTimeout(() => abgleichen(false), 4000); }
   }
@@ -320,8 +323,12 @@
     if (val !== undefined) { el.value = val; if (tag === 'input' && val !== null) el.setAttribute('value', val); }
     return el;
   }
-  const fachC = k => E.FAECHER.some(f => f.k === k) ? `--c:var(--${k})` : '';
+  const fachC = k => { if (E.FAECHER.some(f => f.k === k)) return `--c:var(--${k})`; const x = E.alle().find(f => f.k === k); return x ? `--c:${x.farbe}` : ''; };
   const F = k => h('span', { class: 'f', style: fachC(k), title: E.fach(k).name }, k || '–');
+  // Eintrag einer Stunde: eigenes Fach oder Vertretung (ohne Stoffverteilung)
+  const FE = e => e.vertretung ? h('span', { class: 'f', title: 'Vertretung' }, 'VT') : F(e.fach);
+  const fachTitel = e => e.vertretung ? '🔁 Vertretung ' + (e.titel || '') : E.fach(e.fach).icon + ' ' + E.fach(e.fach).name;
+  const thema = e => e.vertretung ? null : aktuellesThema(e.fach, e.klasse);
   const iso = d => E.datum(d);
   const heute = () => iso(new Date());
   const addTage = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -378,7 +385,7 @@
       const first = f.querySelector('input:not([type=checkbox]),select,textarea'); if (first) first.focus();
     });
   }
-  const fachOptionen = leer => [...(leer ? [['', leer]] : []), ...E.FAECHER.map(f => [f.k, `${f.icon} ${f.name}`])];
+  const fachOptionen = leer => [...(leer ? [['', leer]] : []), ...E.alle().map(f => [f.k, `${f.icon} ${f.name}`])];
   const personenNamen = () => [...new Set([S.ich.name, ...alive('personen').map(p => p.name)].filter(Boolean))];
 
   // ---------- Timer ----------
@@ -405,6 +412,8 @@
       nav('#/todo', '✅', 'To-do-Liste', ueber ? ueber + ' überfällig' : t.offen.length || '', null, ueber > 0),
       h('div', { class: 'sec' }, 'Fächer'),
       E.FAECHER.map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      E.alle().some(f => f.extra) ? h('div', { class: 'sec' }, 'Weitere Fächer') : null,
+      E.alle().filter(f => f.extra).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
       h('div', { class: 'sec' }, 'Organisation'),
       nav('#/plan', '🗓', 'Stundenplan & Klingel'),
       nav('#/termine', '📌', 'Termine', termine || ''),
@@ -429,11 +438,11 @@
       const startBlock = (() => { let k = j.k; while (k > 0 && j.slots[k - 1].typ === 'stunde' && E.gleich(j.slots[k - 1].eintrag, e) && e) k--; return j.slots[k].start; })();
       box.push(h('div', { class: 'now', style: e ? fachC(e.fach) : '' },
         h('div', null, h('div', { class: 'tm' }, `${x.nr}. Stunde · ${uhr(startBlock)}–${b.bis}`),
-          h('div', { class: 'big' }, e ? [F(e.fach), ' ', E.fach(e.fach).name, ' · ', e.klasse || '–'] : 'Freistunde'),
-          e ? h('div', { class: 'topic' }, (e.raum ? `Raum ${e.raum} · ` : '') + 'Thema: ' + ((aktuellesThema(e.fach, e.klasse) || {}).titel || '– noch keins eingetragen')) : null),
+          h('div', { class: 'big' }, e ? [FE(e), ' ', e.vertretung ? 'Vertretung ' + (e.titel || '') : E.fach(e.fach).name, ' · ', e.klasse || '–'] : 'Freistunde'),
+          e ? h('div', { class: 'topic' }, (e.raum ? `Raum ${e.raum}` : '') + (e.vertretung ? '' : (e.raum ? ' · ' : '') + 'Thema: ' + ((thema(e) || {}).titel || '– noch keins eingetragen'))) : null),
         h('div', { class: 'rest' + (rest < S.einst.vorEnde * 6e4 ? ' warn' : '') }, mmss(rest)),
         h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (now - startBlock) / (b.ende - startBlock) * 100)}%` }))));
-      box.push(h('div', { class: 'btns', style: 'margin-left:0' }, h('button', { class: 'primary', onclick: () => timerOeffnen(b.bis, e ? `${e.fach} ${e.klasse || ''}` : '') }, `⏱ Timer bis ${b.bis}`)));
+      box.push(h('div', { class: 'btns', style: 'margin-left:0' }, h('button', { class: 'primary', onclick: () => timerOeffnen(b.bis, e ? `${e.vertretung ? 'Vertretung' : e.fach} ${e.klasse || ''}` : '') }, `⏱ Timer bis ${b.bis}`)));
     } else if (x && x.typ === 'pause') {
       const nx = j.slots[j.k + 1];
       box.push(h('div', { class: 'now' },
@@ -464,7 +473,7 @@
       if (key < seit) continue;
       const gruppen = new Map();
       E.tag(d, S).forEach(x => {
-        if (!x.eintrag || x.ende - 5 * 6e4 > now) return;
+        if (!x.eintrag || x.eintrag.vertretung || x.ende - 5 * 6e4 > now) return;
         const g = `${x.eintrag.fach}|${norm(x.eintrag.klasse)}`;
         if (!gruppen.has(g)) gruppen.set(g, { tag: key, e: x.eintrag, zeiten: [], std: 0 });
         const gr = gruppen.get(g);
@@ -527,8 +536,8 @@
     return h('section', { class: 'card' }, h('h2', null, `📅 Heute (${WTL[d.getDay()]})`),
       sl.length ? h('div', { class: 'list' }, sl.map(x => h('div', { class: 'row' + (x.start <= now && now < x.ende ? ' cur' : x.ende <= now ? ' done' : '') },
         h('span', { class: 'tm' }, `${x.von}–${x.bis}`),
-        x.eintrag ? [F(x.eintrag.fach), h('span', { class: 'kl' }, x.eintrag.klasse || '–'), x.eintrag.raum ? h('span', { class: 'note' }, 'Raum ' + x.eintrag.raum) : null,
-          h('span', { class: 'topic' }, (aktuellesThema(x.eintrag.fach, x.eintrag.klasse) || {}).titel || '')]
+        x.eintrag ? [FE(x.eintrag), h('span', { class: 'kl' }, x.eintrag.klasse || '–'), x.eintrag.raum ? h('span', { class: 'note' }, 'Raum ' + x.eintrag.raum) : null,
+          h('span', { class: 'topic' }, x.eintrag.vertretung ? 'Vertretung ' + (x.eintrag.titel || '') : (thema(x.eintrag) || {}).titel || '')]
           : x.entfall ? [h('span', { class: 'badge crit' }, 'entfällt'), h('span', { class: 'topic', style: 'text-decoration:line-through' }, x.titel)]
           : h('span', null, `👀 Aufsicht · ${x.name || 'Pause'}`))))
         : h('div', { class: 'empty' }, 'Heute kein eigener Unterricht eingetragen.'));
@@ -544,8 +553,8 @@
     }
     return h('section', { class: 'card' }, h('h2', null, '🗓 Meine nächsten Stunden', h('span', { class: 'grow' }), h('a', { href: '#/plan', style: 'font-size:13px' }, 'Woche ›')),
       tage.length ? tage.map(t => [h('div', { class: 'grp' }, `${WTL[t.d.getDay()]} ${pad(t.d.getDate())}.${pad(t.d.getMonth() + 1)}.`),
-        h('div', { class: 'list' }, t.g.map(x => h('div', { class: 'row' }, h('span', { class: 'tm' }, `${x.von}–${x.bis}`), F(x.e.fach), h('span', { class: 'kl' }, x.e.klasse || '–'),
-          h('span', { class: 'topic' }, (aktuellesThema(x.e.fach, x.e.klasse) || {}).titel || '– kein Thema'))))])
+        h('div', { class: 'list' }, t.g.map(x => h('div', { class: 'row' }, h('span', { class: 'tm' }, `${x.von}–${x.bis}`), FE(x.e), h('span', { class: 'kl' }, x.e.klasse || '–'),
+          h('span', { class: 'topic' }, x.e.vertretung ? 'Vertretung ' + (x.e.titel || '') : (thema(x.e) || {}).titel || '– kein Thema'))))])
         : h('div', { class: 'empty' }, 'Keine Stunden im Plan.'));
   }
 
@@ -760,7 +769,7 @@
   function viewKlasse(kl) {
     const w = [h('div', { class: 'crumb' }, '⌂ Meine Klassen › ' + kl), h('h1', null, 'Klasse ' + kl),
       h('p', { class: 'note' }, 'Wo steht jedes Fach in dieser Klasse? So sieht man, ob z. B. Fachrechnen schon die Grundlagen für Elektrotechnik gelegt hat.')];
-    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.FAECHER.map(f => {
+    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.alle().map(f => {
       const l = stoffVon(f.k, kl); if (!l.length && !S.plan.some(e => e.fach === f.k && norm(e.klasse) === norm(kl))) return null;
       const cur = l.find(x => x.status !== 'fertig'), fertig = l.filter(x => x.status === 'fertig').length;
       const last = alive('log').filter(x => x.fach === f.k && norm(x.klasse) === norm(kl) && x.erg !== 'ignoriert').sort((a, b) => b.datum.localeCompare(a.datum))[0];
@@ -814,6 +823,8 @@
         return h('div', { class: 'day' }, h('h3', { class: iso(dt) === heute() ? 'heute' : '' }, `${WT[t]} ${ddmm(dt)}`),
           sl.length ? sl.map(x => {
             if (x.typ === 'feierabend') return h('div', { class: 'fa' }, `🏁 ${x.name || 'Feierabend'} ${x.von}`);
+            if (x.typ === 'pause' && x.kal) return h('button', { class: 'pz', style: 'text-align:left;border-color:var(--warn)', onclick: () => zuordnenDialog(x.key, x.titel || 'Pausenaufsicht') },
+              h('span', { style: 'color:var(--warn);font-weight:600' }, `👀 Pausenaufsicht ${x.von}–${x.bis}`), h('small', null, '📅 aus WebUntis'));
             if (x.typ === 'pause') {
               const id = t + '|' + x.von, on = S.aufsicht.includes(id);
               return h('div', { class: 'pz' }, h('span', null, `${x.name || 'Pause'} ${x.von}–${x.bis}`),
@@ -823,10 +834,12 @@
             if (x.kal) return h('button', { class: 'slot' + (e ? ' has' : '') + (x.entfall ? ' aus' : ''), style: e ? fachC(e.fach) : '', title: x.titel, onclick: () => zuordnenDialog(x.key, x.titel) },
               h('span', { class: 'tm' }, `📅 ${x.von}–${x.bis}`),
               x.entfall ? [h('span', { class: 'badge crit' }, 'entfällt'), h('small', { style: 'text-decoration:line-through' }, x.titel)]
-                : e ? [h('span', null, F(e.fach), ' ', h('b', null, e.klasse || '')), e.raum ? h('small', null, e.raum) : null] : h('small', null, x.titel + ' · nicht zugeordnet'));
+                : e ? [h('b', { class: 'fn' }, fachTitel(e)), h('small', null, [e.klasse, e.raum].filter(Boolean).join(' · '))]
+                  : h('small', null, (x.titel || '(ohne Titel)') + ' · ignoriert'),
+              h('small', { class: 'raw', title: 'So steht es in WebUntis' }, [x.titel, x.info].filter(Boolean).join(' · ')));
             return h('button', { class: 'slot' + (e ? ' has' : ''), style: e ? fachC(e.fach) : '', onclick: () => planDialog(t, { nr: x.nr, start: x.von, ende: x.bis }) },
               h('span', { class: 'tm' }, `${x.nr}. · ${x.von}–${x.bis}`),
-              e ? [h('span', null, F(e.fach), ' ', h('b', null, e.klasse || '')), e.raum ? h('small', null, e.raum) : null] : h('small', null, '+'));
+              e ? [h('b', { class: 'fn' }, E.fach(e.fach).icon + ' ' + E.fach(e.fach).name), h('small', null, [e.klasse, e.raum].filter(Boolean).join(' · '))] : h('small', null, '+'));
           }) : h('div', { class: 'empty', style: 'text-align:center' }, 'keine Klingelzeiten'));
       })))));
 
@@ -1018,10 +1031,12 @@
     try { const k = E.kalenderSpeichern(await f.text()); render(); E.toast({ art: 'pause', titel: 'WebUntis-Kalender geladen', text: `${k.ev.length} Stunden bis ${tagLabel(k.bis)} – bitte die Zuordnung der Fächer prüfen.` }); }
     catch (e) { E.toast({ art: 'ende', titel: 'WebUntis', text: String(e.message || e) }); }
   };
+  const zuOptionen = () => [['', '– ignorieren (keine Erinnerung) –'], [E.VERTRETUNG, '🔁 Vertretung / nicht mein Fach (nur Erinnerung)'], [E.AUFSICHT, '👀 Pausenaufsicht'],
+    ...E.alle().map(f => [f.k, `${f.icon} ${f.name}`])];
   async function zuordnenDialog(key, titel) {
     const i = key.indexOf('|'), z = E.zuordnung({ sum: key.slice(0, i), besch: key.slice(i + 1) }, S);
     const v = await formular(`WebUntis: „${titel || '–'}“`, [
-      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– nicht mein Unterricht / ignorieren –') },
+      { k: 'fach', label: 'Was ist das?', type: 'select', options: zuOptionen() },
       { k: 'klasse', label: 'Klasse', list: klassen() },
     ], z, { hinweis: 'Gilt für alle Stunden mit diesem WebUntis-Eintrag.' });
     if (!v) return;
@@ -1057,7 +1072,7 @@
           const z = E.zuordnung(e, S);
           return h('div', { class: 'row' },
             h('span', { class: 'grow', style: 'min-width:160px' }, h('b', null, e.sum || '(ohne Titel)'), e.besch ? h('span', { class: 'note' }, ' ' + e.besch.slice(0, 60)) : null, h('span', { class: 'note' }, ` · ${n}×`)),
-            h('select', { 'aria-label': 'Fach', value: z.fach, onchange: ev => setMap(key, { fach: ev.target.value, klasse: z.klasse }) }, fachOptionen('– ignorieren –').map(([v2, l]) => h('option', { value: v2 }, l))),
+            h('select', { 'aria-label': 'Fach', value: z.fach, onchange: ev => setMap(key, { fach: ev.target.value, klasse: z.klasse }) }, zuOptionen().map(([v2, l]) => h('option', { value: v2 }, l))),
             h('input', { 'aria-label': 'Klasse', placeholder: 'Klasse', value: z.klasse, style: 'width:110px', onchange: ev => setMap(key, { fach: z.fach, klasse: ev.target.value.trim() }) }),
             z.fest ? null : h('span', { class: 'badge warn', title: 'Automatisch erkannt – bitte prüfen' }, 'Vorschlag'));
         }))] : null,
@@ -1132,13 +1147,36 @@
   async function personDialog(x) {
     const v = await formular(x ? 'Kollegin/Kollege bearbeiten' : 'Kollegin/Kollege hinzufügen', [
       { k: 'name', label: 'Name', req: true },
-      ...E.FAECHER.map(f => ({ k: 'f_' + f.k, label: `${f.icon} ${f.name}`, type: 'checkbox' })),
+      ...E.alle().map(f => ({ k: 'f_' + f.k, label: `${f.icon} ${f.name}`, type: 'checkbox' })),
       { k: 'klassen', label: 'Klassen', ph: 'z. B. 1A, 2B, 3A' },
       { k: 'kontakt', label: 'Kontakt (optional)', ph: 'Telefon oder E-Mail' },
     ], x ? Object.assign({}, x, Object.fromEntries((x.faecher || []).map(k => ['f_' + k, true]))) : {}, { loeschen: !!x });
     if (v === 'del') return drop('personen', x.id);
     if (!v) return;
-    put('personen', Object.assign({}, x || {}, { name: v.name, klassen: v.klassen, kontakt: v.kontakt, faecher: E.FAECHER.filter(f => v['f_' + f.k]).map(f => f.k) }));
+    put('personen', Object.assign({}, x || {}, { name: v.name, klassen: v.klassen, kontakt: v.kontakt, faecher: E.alle().filter(f => v['f_' + f.k]).map(f => f.k) }));
+  }
+  async function fachDialog(x) {
+    const v = await formular(x ? 'Fach bearbeiten' : 'Fach hinzufügen', [
+      { k: 'k', label: 'Kürzel (2–5 Großbuchstaben/Ziffern, wie in WebUntis)', req: true, ph: 'z. B. GK' },
+      { k: 'name', label: 'Name', req: true, ph: 'z. B. Gemeinschaftskunde' },
+      { k: 'icon', label: 'Symbol (ein Emoji)', ph: '📘' },
+      { k: 'farbe', label: 'Farbe', type: 'color', def: '#94a3b8' },
+      { k: 'ende', label: 'Tipp kurz vor Stundenende (optional)' },
+    ], x || {}, { loeschen: !!x });
+    const liste = (Array.isArray(S.faecher) ? S.faecher : E.EXTRA_VORGABE).map(f => Object.assign({}, f)).filter(f => !x || f.k !== x.k);
+    if (v === 'del') { S.faecher = liste; save(true); render(); return; }
+    if (!v) return;
+    v.k = v.k.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+    if (!v.k || E.FAECHER.some(f => f.k === v.k) || liste.some(f => f.k === v.k)) { E.toast({ art: 'ende', titel: 'Fach', text: 'Dieses Kürzel gibt es schon oder es ist leer.' }); return; }
+    liste.push({ k: v.k, name: v.name, icon: v.icon || '📘', farbe: v.farbe, ende: v.ende });
+    S.faecher = liste; save(true); render();
+  }
+  function cardFaecher() {
+    return h('section', { class: 'card' }, h('h2', null, '📚 Fächer', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => fachDialog() }, '+ Fach')),
+      h('p', { class: 'note' }, 'Die fünf KFZ-Fächer sind fest. Weitere Fächer (z. B. Vertretungen) kannst du hier anlegen; das Kürzel hilft beim Erkennen in WebUntis.'),
+      h('div', { class: 'chips', style: 'padding:0' }, E.alle().map(f => f.extra
+        ? h('button', { class: 'chip', style: fachC(f.k), title: 'Bearbeiten', onclick: () => fachDialog(E.alle().find(y => y.k === f.k)) }, F(f.k), f.name, ' ✎')
+        : h('span', { class: 'chip' }, F(f.k), f.name))));
   }
   function viewTeam() {
     const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Team'), h('h1', null, 'Team & Austausch')];
@@ -1149,6 +1187,7 @@
         h('label', null, 'Digitales Register', h('input', { type: 'url', value: S.ich.register || '', placeholder: 'https://deineschule.digitalesregister.it', onchange: ev => { S.ich.register = ev.target.value.trim(); save(true); renderSide(); } }))),
       h('p', { class: 'note' }, 'Der Name steht bei deinen Einträgen, damit Kolleginnen und Kollegen sehen, von wem eine Änderung kommt.')));
 
+    w.push(cardFaecher());
     w.push(h('section', { class: 'card' }, h('h2', null, '👥 Fachlehrer-Team', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => personDialog() }, '+ Person')),
       alive('personen').length ? h('div', { class: 'list' }, alive('personen').sort((a, b) => a.name.localeCompare(b.name, 'de')).map(p => h('div', { class: 'row' },
         h('b', null, p.name), (p.faecher || []).map(F), p.klassen ? h('span', { class: 'note' }, p.klassen) : null, p.kontakt ? h('span', { class: 'note' }, p.kontakt) : null,
