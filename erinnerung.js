@@ -74,15 +74,109 @@
   function tag(d, s) {
     s = s || laden();
     const wt = new Date(d).getDay();
-    return s.bell
+    const rows = s.bell
       .filter(b => gilt(b, wt) && hm(b.start) != null && (b.typ === 'feierabend' || (hm(b.ende) != null && hm(b.ende) > hm(b.start))))
-      .sort((a, b) => hm(a.start) - hm(b.start) || (a.typ === 'feierabend') - (b.typ === 'feierabend'))
-      .map((b, i) => Object.assign({}, b, {
-        i, von: b.start, bis: b.typ === 'feierabend' ? b.start : b.ende, start: at(d, b.start), ende: at(d, b.typ === 'feierabend' ? b.start : b.ende),
-        eintrag: b.typ === 'stunde' ? s.plan.find(e => +e.tag === wt && String(e.nr) === String(b.nr) && e.fach) || null : null,
-        aufsicht: b.typ === 'pause' && s.aufsicht.includes(wt + '|' + b.start),
+      .map(b => Object.assign({}, b, {
+        von: b.start, bis: b.typ === 'feierabend' ? b.start : b.ende, start: at(d, b.start), ende: at(d, b.typ === 'feierabend' ? b.start : b.ende),
+        eintrag: null, aufsicht: b.typ === 'pause' && s.aufsicht.includes(wt + '|' + b.start),
       }));
+    const k = kal(), key = datum(d);
+    let all;
+    if (k && k.von && key >= k.von && key <= k.bis) {
+      // Tag aus dem WebUntis-Kalender: echte Stunden mit Vertretungen und Entfällen, dazu Pausen und Feierabend der Klingel
+      const evs = k.ev.filter(e => datum(e.s) === key).sort((a, b) => a.s - b.s);
+      const st = evs.map(e => {
+        const z = zuordnung(e, s), b = rows.find(r => r.typ === 'stunde' && r.start < e.e && r.ende > e.s);
+        const nr = b ? String(b.nr) : '';
+        return { typ: 'stunde', nr, von: uhr(e.s), bis: uhr(e.e), start: e.s, ende: e.e, kal: true, titel: e.sum, key: icsKey(e), entfall: !!e.aus,
+          eintrag: !e.aus && z.fach ? { tag: wt, nr, fach: z.fach, klasse: z.klasse, raum: e.ort } : null };
+      });
+      all = st.concat(rows.filter(r => r.typ === 'feierabend' || !evs.some(e => (!e.aus || r.typ === 'stunde') && r.start < e.e && r.ende > e.s)));
+    } else {
+      rows.forEach(r => { if (r.typ === 'stunde') r.eintrag = s.plan.find(e => +e.tag === wt && String(e.nr) === String(r.nr) && e.fach) || null; });
+      all = rows;
+    }
+    return all.sort((a, b) => a.start - b.start || (a.typ === 'feierabend') - (b.typ === 'feierabend') || (a.entfall ? 1 : 0) - (b.entfall ? 1 : 0))
+      .map((x, i) => Object.assign(x, { i }));
   }
+
+  // ---------- WebUntis-Kalender (iCal) ----------
+  const KAL = 'arbeitsplatz.kalender';
+  let kalRaw = null, kalObj = null;
+  function kal() {
+    let r = null; try { r = localStorage.getItem(KAL); } catch (e) {}
+    if (r !== kalRaw) { kalRaw = r; try { kalObj = JSON.parse(r || 'null'); } catch (e) { kalObj = null; } if (!kalObj || !Array.isArray(kalObj.ev)) kalObj = kalObj && kalObj.fehler ? Object.assign(kalObj, { ev: [] }) : null; }
+    return kalObj;
+  }
+  function icsZeit(v) {
+    const m = /^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d)(\d\d)?(Z)?)?$/.exec(String(v || '').trim());
+    if (!m || !m[4]) return null;   // ganztägige Einträge (Ferien) zählen nicht als Stunde
+    return m[7] ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+  }
+  function icsLesen(txt) {
+    const lines = String(txt).replace(/\r?\n[ \t]/g, '').split(/\r?\n/), ev = [];
+    let cur = null;
+    for (const l of lines) {
+      if (l === 'BEGIN:VEVENT') cur = {};
+      else if (l === 'END:VEVENT') { if (cur) ev.push(cur); cur = null; }
+      else if (cur) { const m = /^([A-Z-]+)(?:;[^:]*)?:(.*)$/.exec(l); if (m && !(m[1] in cur)) cur[m[1]] = m[2].replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim(); }
+    }
+    return ev.map(e => ({ s: icsZeit(e.DTSTART), e: icsZeit(e.DTEND), sum: (e.SUMMARY || '').slice(0, 120), ort: (e.LOCATION || '').slice(0, 60),
+      besch: (e.DESCRIPTION || '').slice(0, 160), aus: /CANCEL/i.test(e.STATUS || '') }))
+      .filter(e => e.s && e.e && e.e > e.s && e.e - e.s < 6 * 3600e3);
+  }
+  const icsKey = e => e.sum + '|' + e.besch;
+  const fachRaten = t => {
+    const u = ' ' + String(t).toUpperCase() + ' ';
+    if (/KFZ|[^A-Z]FT[^A-Z]|FACHTHEO|TECHNOLOG/.test(u)) return 'FT';
+    if (/[^A-Z]ET[^A-Z]|ELEKTR/.test(u)) return 'ET';
+    if (/[^A-Z]FR[^A-Z]|RECHN|MATHE/.test(u)) return 'FR';
+    if (/[^A-Z]PX[^A-Z]|PRAX|WERKST|[^A-Z]WS[^A-Z]|[^A-Z]PR[^A-Z]/.test(u)) return 'PX';
+    if (/[^A-Z]MK[^A-Z]|METHOD/.test(u)) return 'MK';
+    return '';
+  };
+  const klasseRaten = t => { const m = /\b(\d{1,2}[A-Za-z]{1,3}|[A-Z]{2,}(?:-[A-Za-z0-9]+)+)\b/.exec(String(t)); return m ? m[1] : ''; };
+  // Zuordnung WebUntis-Eintrag -> Fach/Klasse: gespeicherte Wahl, sonst Vorschlag
+  function zuordnung(e, s) {
+    const m = s && s.ui && s.ui.icalMap && s.ui.icalMap[icsKey(e)];
+    if (m) return { fach: m.fach || '', klasse: m.klasse || '', fest: true };
+    return { fach: fachRaten(e.sum + ' ' + e.besch), klasse: klasseRaten(e.sum + ' ' + e.besch), fest: false };
+  }
+  function kalenderSpeichern(txt) {
+    const alle = icsLesen(txt);
+    if (!alle.length) throw new Error('Im Kalender sind keine Stunden mit Uhrzeit.');
+    const heute0 = new Date(); heute0.setHours(0, 0, 0, 0);
+    const ab = heute0.getTime() - 7 * 864e5, bis = heute0.getTime() + 35 * 864e5;
+    const ev = alle.filter(e => e.s >= ab && e.s < bis).sort((a, b) => a.s - b.s);
+    const k = { stand: Date.now(), ev, von: ev.length ? datum(ev[0].s) : '', bis: ev.length ? datum(ev[ev.length - 1].s) : '', gesamt: alle.length };
+    localStorage.setItem(KAL, JSON.stringify(k));
+    return k;
+  }
+  function kalenderEntfernen() { try { localStorage.removeItem(KAL); } catch (e) {} }
+  let syncLauf = false;
+  async function kalenderSync(force) {
+    const s = laden(), url = String((s.ui && s.ui.icalUrl) || '').trim().replace(/^webcal:/i, 'https:');
+    if (!/^https:\/\/\S+$/i.test(url) || syncLauf) return null;
+    const k = kal();
+    if (!force && k && Date.now() - Math.max(k.stand || 0, k.fehlerAm || 0) < 25 * 6e4) return null;
+    syncLauf = true;
+    try {
+      let txt;
+      if (window.desk && window.desk.ical) txt = await window.desk.ical(url);
+      else {
+        let r;
+        try { r = await fetch(url, { cache: 'no-store' }); } catch (e) { throw new Error('BROWSER'); }
+        if (!r.ok) throw new Error('WebUntis antwortet mit Fehler ' + r.status + '. Ist der Link noch gültig?');
+        txt = await r.text();
+      }
+      return kalenderSpeichern(txt);
+    } catch (e) {
+      const msg = String(e && e.message || e).replace(/^Error invoking remote method 'ical': (Error: )?/, '');
+      try { const k2 = Object.assign({ ev: [], von: '', bis: '' }, kal() || {}, { fehler: msg, fehlerAm: Date.now() }); localStorage.setItem(KAL, JSON.stringify(k2)); } catch (x) {}
+      throw new Error(msg);
+    } finally { syncLauf = false; }
+  }
+
   const gleich = (a, b) => a && b && a.fach === b.fach && norm(a.klasse) === norm(b.klasse);
   const label = e => e ? `${fach(e.fach).name} · ${e.klasse || '–'}` + (e.raum ? ` · Raum ${e.raum}` : '') : '';
 
@@ -100,7 +194,7 @@
     const sl = tag(d, s);
     const eigene = sl.some(x => x.eintrag), aufs = sl.some(x => x.aufsicht);
     if (!eigene && !aufs && (E.nurEigene || wt === 0 || wt === 6)) return out;
-    const rel = x => x && x.typ === 'stunde' && (x.eintrag || !E.nurEigene);
+    const rel = x => x && x.typ === 'stunde' && !x.entfall && (x.eintrag || !E.nurEigene);
     const relIdx = sl.map((x, k) => rel(x) ? k : -1).filter(k => k >= 0);
     const erste = relIdx[0], letzte = relIdx[relIdx.length - 1];
     const add = (art, x, t, titel, text) => out.push({ id: `${key}|${art}|${x.von}`, art, t, titel, text });
@@ -260,11 +354,14 @@
       ereignisse(now, s).forEach(e => { if (now >= e.t && now - e.t < 120000 && markieren(e.id)) ausloesen(e, s); });
     };
     pruefen(); timer = setInterval(pruefen, 5000);
+    // WebUntis-Kalender aktuell halten (in der Windows-App alle 30 Minuten)
+    const sync = () => kalenderSync().then(k => { if (k) hoerer.forEach(f => { try { f({ art: 'kalender' }); } catch (x) {} }); }).catch(() => {});
+    setTimeout(sync, 1500); setInterval(sync, 5 * 6e4);
   }
   function testen() {
     ausloesen({ id: 'test', art: 'ende', titel: 'Test: Stunde zu Ende', text: 'So sieht und hört sich eine Erinnerung an.' });
   }
 
   window.Erinnerung = { KEY, FAECHER, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
-    MOFR, vorlage, gilt, blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
+    MOFR, vorlage, gilt, kal, icsLesen, icsKey, fachRaten, klasseRaten, zuordnung, kalenderSpeichern, kalenderEntfernen, kalenderSync, blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
 })();

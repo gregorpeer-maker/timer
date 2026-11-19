@@ -1,5 +1,5 @@
 // Unterrichtstimer – Windows-App: rahmenloses, durchsichtiges Fenster, in der Mini-Ansicht immer im Vordergrund.
-const { app, BrowserWindow, ipcMain, screen, net } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, net, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -40,6 +40,14 @@ function setMode(m, size) {
   }
 }
 
+// Links nach außen (z. B. Digitales Register) im normalen Browser öffnen
+function extern(w) {
+  w.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+}
+
 function create() {
   loadPos();
   win = new BrowserWindow({
@@ -49,6 +57,7 @@ function create() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   win.removeMenu();
+  extern(win);
   win.loadFile(path.join(__dirname, 'index.html'));
   win.once('ready-to-show', () => win.show());
   const remember = () => { if (mode === 'widget' && win) { const [x, y] = win.getPosition(); pos = { x, y }; savePos(); } };
@@ -66,6 +75,7 @@ function openWorkplace() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   ws.removeMenu();
+  extern(ws);
   ws.loadFile(path.join(__dirname, 'arbeitsplatz.html'));
   ws.on('closed', () => { ws = null; });
 }
