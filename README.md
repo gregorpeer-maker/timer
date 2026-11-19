@@ -2,10 +2,36 @@
 
 Timer für die Unterrichtsstunde nach dem AVIVA-Modell (Ankommen, Vorwissen aktivieren, Informieren, Verarbeiten, Auswerten) mit Anzeige, ob man im Plan, im Verzug oder im Vorsprung ist.
 
-Das Repository enthält zwei Dinge:
+Das Repository enthält:
 
 - **`index.html`** – der Timer als Webseite. Läuft in jedem Browser, auch über GitHub Pages.
-- **Windows-App** (`main.js`, `preload.js`, `package.json`) – derselbe Timer als kleines Fenster mit durchsichtigem Hintergrund, das über allen Programmen bleibt.
+- **`arbeitsplatz.html`** – der KFZ-Arbeitsplatz für die Zusammenarbeit im Fachlehrer-Team (siehe unten).
+- **`erinnerung.js`** – Erinnerungen an Stundenende, Pausen und Pausenaufsicht; wird von Timer und Arbeitsplatz gemeinsam genutzt.
+- **Windows-App** (`main.js`, `preload.js`, `package.json`) – derselbe Timer als kleines Fenster mit durchsichtigem Hintergrund, das über allen Programmen bleibt. Der Knopf **🏠 Arbeitsplatz** öffnet den Arbeitsplatz in einem zweiten Fenster.
+
+## KFZ-Arbeitsplatz
+
+Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX), Methodenkompetenz (MK).
+
+- **Stundenplan & Klingel:** Wochenplan antippen und Fach, Klasse und Raum eintragen. Klingelzeiten anpassen. Bei Pausen „Aufsicht“ anhaken.
+- **Erinnerungen:** x Minuten vor Stundenende, beim Klingeln, bei Pausenbeginn, kurz vor Pausenende und vor der Pausenaufsicht – mit Gong, Hinweis im Fenster und Systemmitteilung. Doppelstunden werden zusammengefasst. „Heute stumm“ für Ausflugstage.
+- **Wie liefen deine Stunden?** Nach jeder Stunde ein Klick (geschafft / nicht ganz / fiel aus) – das Thema rückt in der Stoffverteilung weiter.
+- **Stoffverteilung** pro Fach und Klasse, mit geplanten und gebrauchten Stunden; Themen lassen sich aus einer anderen Klasse übernehmen.
+- **Klassenansicht:** Stand aller Fächer einer Klasse auf einen Blick.
+- **To-do-Liste:** getrennt nach ★ wichtig / ☆ nicht wichtig, jeweils zeitlich sortiert (überfällig, heute, morgen, diese Woche, später). Mit Uhrzeit kommt eine Erinnerung. To-dos sind standardmäßig privat; Team-Aufgaben können einer Person zugewiesen werden.
+- **Termine** (Prüfungen, Abgaben, Konferenzen) und **Pinnwand** für Absprachen.
+- **Timer:** „⏱ Timer“ übernimmt das Stundenende aus der Klingel; im Timer selbst gibt es dafür den Knopf „🔔 Klingel“.
+
+### Zusammenarbeit im Team
+
+Es gibt keinen Server. Die Daten liegen im Browser bzw. in der App jeder Person. Ausgetauscht wird über eine Datei:
+
+- **Gemeinsame Team-Datei** (Chrome/Edge am Computer): `kfz-team.json` in einen gemeinsamen Ordner legen (OneDrive, Teams, Netzlaufwerk). Jede Person verbindet sie unter **Team & Austausch** einmal; danach wird jede Minute abgeglichen. Nach einem Neustart des Browsers muss man einmal „Jetzt abgleichen“ klicken (Sicherheitsregel des Browsers).
+- **Export/Import:** Team-Daten exportieren und per Mail/Teams schicken. Beim Import wird zusammengeführt, die neuere Änderung gewinnt.
+
+Geteilt werden Stoffverteilung, Rückmeldungen, Pinnwand, Termine, Team-Aufgaben und die Personenliste. Privat bleiben eigene To-dos, Stundenplan, Klingelzeiten und Einstellungen.
+
+Erinnerungen kommen nur, solange der Arbeitsplatz oder der Timer geöffnet ist. Systemmitteilungen brauchen https (GitHub Pages) oder die Windows-App; eine direkt geöffnete Datei (`file://`) zeigt nur den Hinweis im Fenster und spielt den Ton.
 
 ## Auf GitHub hochladen
 
