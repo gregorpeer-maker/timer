@@ -1,5 +1,5 @@
 // Unterrichtstimer – Windows-App: rahmenloses, durchsichtiges Fenster, in der Mini-Ansicht immer im Vordergrund.
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, net, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -40,6 +40,14 @@ function setMode(m, size) {
   }
 }
 
+// Links nach außen (z. B. Digitales Register) im normalen Browser öffnen
+function extern(w) {
+  w.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+}
+
 function create() {
   loadPos();
   win = new BrowserWindow({
@@ -49,6 +57,7 @@ function create() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   win.removeMenu();
+  extern(win);
   win.loadFile(path.join(__dirname, 'index.html'));
   win.once('ready-to-show', () => win.show());
   const remember = () => { if (mode === 'widget' && win) { const [x, y] = win.getPosition(); pos = { x, y }; savePos(); } };
@@ -66,12 +75,22 @@ function openWorkplace() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   ws.removeMenu();
+  extern(ws);
   ws.loadFile(path.join(__dirname, 'arbeitsplatz.html'));
   ws.on('closed', () => { ws = null; });
 }
 
 ipcMain.on('mode', (e, m, size) => setMode(m, size));
 ipcMain.on('arbeitsplatz', openWorkplace);
+// WebUntis-Stundenplan (iCal) abrufen: im Hauptprozess, weil der Browser-Teil vom Server gesperrt wird
+ipcMain.handle('ical', async (e, url) => {
+  if (!/^https:\/\/\S+$/i.test(String(url))) throw new Error('Der Link muss mit https:// beginnen.');
+  const r = await net.fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('WebUntis antwortet mit Fehler ' + r.status + '. Ist der Link noch gültig?');
+  const t = await r.text();
+  if (t.length > 10e6 || !t.includes('BEGIN:VCALENDAR')) throw new Error('Das ist kein Kalender (iCal).');
+  return t;
+});
 ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: Stundenende übernehmen und Timer zeigen
   if (!win) return;
   win.webContents.send('auftrag', String(ende || ''), String(titel || ''));
