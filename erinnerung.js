@@ -12,7 +12,20 @@
     { k: 'PX', name: 'Praxis', icon: '🔧', ende: 'Werkstatt aufräumen, Werkzeug zählen, Arbeitsplätze kontrollieren.' },
     { k: 'MK', name: 'Methodenkompetenz', icon: '🧭', ende: 'Ergebnisse sichern, Rückmeldung einholen.' },
   ];
-  const fach = k => FAECHER.find(f => f.k === k) || { k: String(k || ''), name: String(k || '–'), icon: '📘', ende: '', fremd: true };
+  // Weitere Fächer, die man selbst anlegen kann (Vorgabe: Gemeinschaftskunde und EDV)
+  const EXTRA_VORGABE = [
+    { k: 'GK', name: 'Gemeinschaftskunde', icon: '🏛', farbe: '#f472b6', ende: 'Ergebnisse sichern, Hausaufgabe angeben.' },
+    { k: 'EDV', name: 'EDV', icon: '💻', farbe: '#a3e635', ende: 'Dateien speichern, Rechner herunterfahren, Plätze aufräumen.' },
+  ];
+  let EXTRA = EXTRA_VORGABE.map(f => Object.assign({}, f));
+  const extraOk = f => f && /^[A-Z0-9]{1,5}$/.test(f.k) && !FAECHER.some(b => b.k === f.k) && typeof f.name === 'string' && f.name.trim();
+  function setExtra(list) {
+    EXTRA = (Array.isArray(list) ? list : EXTRA_VORGABE).filter(extraOk).map(f => ({
+      k: f.k, name: String(f.name).trim().slice(0, 40), icon: String(f.icon || '📘').slice(0, 4),
+      farbe: /^#[0-9a-f]{6}$/i.test(f.farbe || '') ? f.farbe : '#94a3b8', ende: String(f.ende || '').slice(0, 120), extra: true }));
+  }
+  const alle = () => FAECHER.concat(EXTRA);
+  const fach = k => alle().find(f => f.k === k) || { k: String(k || ''), name: String(k || '–'), icon: '📘', ende: '', fremd: true };
 
   // Vorlage: jede Zeile gilt für die angehakten Wochentage (1 = Mo … 6 = Sa), wie ein Wecker am Handy
   const MOFR = [1, 2, 3, 4, 5];
@@ -60,6 +73,7 @@
     let s = null;
     try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
     s = s && typeof s === 'object' ? s : {};
+    setExtra(s.faecher);
     let bell = Array.isArray(s.bell) ? s.bell.filter(b => b && TYPEN.includes(b.typ)) : [];
     if (bell.every(b => !Array.isArray(b.tage)) && bell.map(b => b.start + '-' + b.ende).join('|') === ALT_BELL) bell = [];
     return Object.assign({}, s, {
@@ -89,7 +103,7 @@
         const z = zuordnung(e, s), b = rows.find(r => r.typ === 'stunde' && r.start < e.e && r.ende > e.s);
         const nr = b ? String(b.nr) : '';
         return { typ: 'stunde', nr, von: uhr(e.s), bis: uhr(e.e), start: e.s, ende: e.e, kal: true, titel: e.sum, key: icsKey(e), entfall: !!e.aus,
-          eintrag: !e.aus && z.fach ? { tag: wt, nr, fach: z.fach, klasse: z.klasse, raum: e.ort } : null };
+          info: e.besch, eintrag: !e.aus && z.fach ? { tag: wt, nr, fach: z.fach, klasse: z.klasse, raum: e.ort } : null };
       });
       all = st.concat(rows.filter(r => r.typ === 'feierabend' || !evs.some(e => (!e.aus || r.typ === 'stunde') && r.start < e.e && r.ende > e.s)));
     } else {
@@ -126,16 +140,21 @@
       .filter(e => e.s && e.e && e.e > e.s && e.e - e.s < 6 * 3600e3);
   }
   const icsKey = e => e.sum + '|' + e.besch;
-  const fachRaten = t => {
-    const u = ' ' + String(t).toUpperCase() + ' ';
-    if (/KFZ|[^A-Z]FT[^A-Z]|FACHTHEO|TECHNOLOG/.test(u)) return 'FT';
-    if (/[^A-Z]ET[^A-Z]|ELEKTR/.test(u)) return 'ET';
-    if (/[^A-Z]FR[^A-Z]|RECHN|MATHE/.test(u)) return 'FR';
-    if (/[^A-Z]PX[^A-Z]|PRAX|WERKST|[^A-Z]WS[^A-Z]|[^A-Z]PR[^A-Z]/.test(u)) return 'PX';
-    if (/[^A-Z]MK[^A-Z]|METHOD/.test(u)) return 'MK';
+  // Fach aus dem WebUntis-Text raten. Reihenfolge zählt: „P-KFZ“ ist Praxis, nicht Fachtheorie; die Klasse „KFZ-3“ zählt nicht als Fach.
+  const ohneKlasse = t => String(t).split(/[\s,;/|()]+/).filter(x => x && !istKlasse(x)).join(' ');
+  function fachRaten(t) {
+    const u = ' ' + ohneKlasse(t).toUpperCase() + ' ', w = k => new RegExp('(^|[^A-Z0-9])' + k + '([^A-Z0-9]|$)').test(u);
+    if (/(^|[^A-Z])P-[A-Z]|PRAXIS|PRAKT|WERKST/.test(u) || w('PX') || w('WS')) return 'PX';
+    for (const f of EXTRA) if (w(f.k) || u.includes(f.name.toUpperCase())) return f.k;
+    if (w('FR') || /RECHN|MATHE/.test(u)) return 'FR';
+    if (w('MK') || /METHOD/.test(u)) return 'MK';
+    if (w('ET') || w('EL') || /(^|[^A-Z])(ET|EL)-|ELEKTR/.test(u)) return 'ET';
+    if (w('FT') || /(^|[^A-Z])FT-|FACHTHEO|TECHNOLOG|KFZ/.test(u)) return 'FT';
     return '';
-  };
-  const klasseRaten = t => { const m = /\b(\d{1,2}[A-Za-z]{1,3}|[A-Z]{2,}(?:-[A-Za-z0-9]+)+)\b/.exec(String(t)); return m ? m[1] : ''; };
+  }
+  // Klassen enden bei euch auf Zahl oder Kleinbuchstaben (KFZ-3, BG-EM-b), Fachkürzel nicht (FT-KFZ, EL-KFZ)
+  const istKlasse = x => /^\d{1,2}[A-Za-z]{1,3}$/.test(x) || /^[A-Z]{2,}(?:-[A-Za-z0-9]+)*-(?:\d+[A-Za-z]?|[a-z]+)$/.test(x);
+  const klasseRaten = t => String(t).split(/[\s,;/|()]+/).find(istKlasse) || '';
   // Zuordnung WebUntis-Eintrag -> Fach/Klasse: gespeicherte Wahl, sonst Vorschlag
   function zuordnung(e, s) {
     const m = s && s.ui && s.ui.icalMap && s.ui.icalMap[icsKey(e)];
@@ -362,6 +381,6 @@
     ausloesen({ id: 'test', art: 'ende', titel: 'Test: Stunde zu Ende', text: 'So sieht und hört sich eine Erinnerung an.' });
   }
 
-  window.Erinnerung = { KEY, FAECHER, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
+  window.Erinnerung = { KEY, FAECHER, alle, setExtra, EXTRA_VORGABE, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
     MOFR, vorlage, gilt, kal, icsLesen, icsKey, fachRaten, klasseRaten, zuordnung, kalenderSpeichern, kalenderEntfernen, kalenderSync, blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
 })();
