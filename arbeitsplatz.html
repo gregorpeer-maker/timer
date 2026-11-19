@@ -107,16 +107,24 @@
   .tbl tr.cur td { background: color-mix(in srgb, var(--accent) 16%, var(--panel2)); }
   .tbl tr.done td { opacity: .6; }
   .scroll { overflow-x: auto; }
-  .week { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 640px; }
-  .week th { font-size: 13px; color: var(--muted); }
-  .week td { padding: 0; }
-  .week .slot { width: 100%; min-height: 48px; text-align: left; display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px; }
-  .week .slot.has { background: color-mix(in srgb, var(--c) 16%, var(--panel2)); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
-  .week .slot small { color: var(--muted); }
-  .week .pz td { text-align: center; font-size: 12px; color: var(--muted); }
-  .week .pz label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
-  .week .tcell { white-space: nowrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .bellrow { display: grid; grid-template-columns: 110px 90px 100px 100px auto; gap: 6px; align-items: center; }
+  .week { display: grid; grid-template-columns: repeat(var(--n), minmax(150px, 1fr)); gap: 8px; min-width: calc(var(--n) * 158px); }
+  .day { display: flex; flex-direction: column; gap: 4px; }
+  .day h3 { margin: 0 0 2px; font-size: 13px; color: var(--muted); text-align: center; }
+  .day h3.heute { color: var(--accent); }
+  .slot { width: 100%; min-height: 50px; text-align: left; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 8px; }
+  .slot .tm { font-size: 11px; }
+  .slot.has { background: color-mix(in srgb, var(--c) 16%, var(--panel2)); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
+  .slot small { color: var(--muted); }
+  .pz { font-size: 12px; color: var(--muted); padding: 4px 8px; border-radius: 8px; border: 1px dashed var(--line); display: flex; flex-direction: column; gap: 2px; }
+  .pz label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; color: var(--fg); }
+  .fa { font-size: 12px; text-align: center; color: var(--good); padding: 4px; font-weight: 600; }
+  .bellrow { display: grid; grid-template-columns: 130px minmax(100px, 1fr) 124px 124px auto auto; gap: 6px; align-items: center; padding: 6px; border-radius: 9px; background: var(--panel2); }
+  .bellrow.warn { outline: 2px solid var(--crit); }
+  .bellrow.leer { opacity: .55; }
+  .bellrow > .btns { margin-left: 0; flex-wrap: nowrap; justify-self: end; }
+  .wd { display: inline-flex; gap: 3px; }
+  .wd button { padding: 4px 0; width: 30px; font-size: 12px; border-radius: 7px; background: var(--bg); color: var(--muted); }
+  .wd button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
   .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px 18px; }
   .settings label { display: flex; align-items: center; gap: 8px; }
   .settings input[type=number] { width: 64px; text-align: right; }
@@ -141,7 +149,7 @@
   .pin .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
   .pin .m { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 18px; width: min(460px, calc(100% - 24px)); }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 18px; width: min(520px, calc(100% - 24px)); max-height: 90vh; overflow-y: auto; }
   dialog::backdrop { background: rgba(0,0,0,.5); }
   dialog form { display: flex; flex-direction: column; gap: 10px; }
   dialog h3 { margin: 0 0 4px; }
@@ -159,6 +167,7 @@
     main { padding: 14px 16px 40px; }
     .two { grid-template-columns: minmax(0, 1fr); }
     .bellrow { grid-template-columns: 1fr 1fr; }
+    .bellrow .wd { grid-column: 1 / -1; }
     .brand span:last-child { display: none; }
     .now .rest { font-size: 30px; }
   }
@@ -182,6 +191,7 @@
 </div>
 <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
+<input type="file" id="icsIn" accept=".ics,text/calendar" hidden>
 
 <script src="erinnerung.js"></script>
 <script>
@@ -255,7 +265,7 @@
       else el.setAttribute(k, v === true ? '' : v);
     }
     kids.flat(Infinity).forEach(c => { if (c != null && c !== false) el.append(c instanceof Node ? c : String(c)); });
-    if (val !== undefined) el.value = val;
+    if (val !== undefined) { el.value = val; if (tag === 'input' && val !== null) el.setAttribute('value', val); }
     return el;
   }
   const fachC = k => E.FAECHER.some(f => f.k === k) ? `--c:var(--${k})` : '';
@@ -712,7 +722,7 @@
       { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– frei –') },
       { k: 'klasse', label: 'Klasse', ph: 'z. B. 3A', list: klassen() },
       { k: 'raum', label: 'Raum / Werkstatt' },
-      { k: 'woche', label: 'Gilt für alle Stunden dieser Klasse mit gleichem Fach? (nur Raum)', type: 'checkbox' },
+      { k: 'woche', label: 'Raum für alle Stunden dieser Klasse mit gleichem Fach übernehmen', type: 'checkbox' },
     ], x || {}, { loeschen: !!x });
     S.plan = S.plan.filter(e => !(+e.tag === tag && String(e.nr) === String(slot.nr)));
     if (v && v !== 'del' && v.fach) {
@@ -722,41 +732,39 @@
     } else if (!v && x) S.plan.push(x);
     save(true); render();
   }
-  function viewPlan() {
-    const bell = E.tag(new Date(), S), tage = [1, 2, 3, 4, 5];
-    if (S.plan.some(e => +e.tag === 6)) tage.push(6);
-    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Stundenplan'), h('h1', null, 'Stundenplan & Klingel')];
-    w.push(h('section', { class: 'card' }, h('h2', null, '🗓 Wochenplan', h('span', { class: 'grow' }),
-      !tage.includes(6) ? h('button', { class: 'small', onclick: () => { planDialog(6, bell.find(b => b.typ === 'stunde')); } }, '+ Samstag') : null),
-      h('p', { class: 'note' }, 'Feld antippen zum Eintragen. Bei Pausen „Aufsicht“ anhaken – dann kommt vorher eine Erinnerung.'),
-      h('div', { class: 'scroll' }, h('table', { class: 'week' },
-        h('thead', null, h('tr', null, h('th', null, ''), tage.map(t => h('th', { style: t === new Date().getDay() ? 'color:var(--accent)' : '' }, WTL[t])))),
-        h('tbody', null, bell.map(b => b.typ === 'pause'
-          ? h('tr', { class: 'pz' }, h('td', { class: 'tcell' }, `${b.von}–${b.bis}`), tage.map(t => {
-              const id = t + '|' + b.von, on = S.aufsicht.includes(id);
-              return h('td', null, h('label', null, h('input', { type: 'checkbox', checked: on, onchange: ev => { S.aufsicht = S.aufsicht.filter(a => a !== id); if (ev.target.checked) S.aufsicht.push(id); save(true); } }), `${b.name || 'Pause'} · Aufsicht`));
-            }))
-          : h('tr', null, h('td', { class: 'tcell' }, h('b', null, b.nr + '.'), h('br'), b.von, h('br'), b.bis), tage.map(t => {
-              const e = S.plan.find(x => +x.tag === t && String(x.nr) === String(b.nr) && x.fach);
-              return h('td', null, h('button', { class: 'slot' + (e ? ' has' : ''), style: e ? fachC(e.fach) : '', onclick: () => planDialog(t, { nr: b.nr, start: b.von, ende: b.bis }) },
-                e ? [h('span', null, F(e.fach), ' ', h('b', null, e.klasse || '')), e.raum ? h('small', null, e.raum) : null] : h('small', null, '+')));
-            }))))))));
+  const wochentage = () => {
+    const t = [1, 2, 3, 4, 5];
+    if (S.plan.some(e => +e.tag === 6) || S.bell.some(b => Array.isArray(b.tage) && b.tage.includes(6))) t.push(6);
+    return t;
+  };
+  const montag = () => addTage(new Date(), -((new Date().getDay() + 6) % 7));
 
-    // Klingelzeiten
-    const raw = S.bell;
-    const setBell = () => { S.bell = raw; save(true); render(); };
-    w.push(h('section', { class: 'card' }, h('h2', null, '🔔 Klingelzeiten', h('span', { class: 'grow' }),
-      h('button', { class: 'small', onclick: () => { raw.push({ typ: 'stunde', nr: String(raw.filter(b => b.typ === 'stunde').length + 1), start: '', ende: '' }); setBell(); } }, '+ Stunde'),
-      h('button', { class: 'small', onclick: () => { raw.push({ typ: 'pause', name: 'Pause', start: '', ende: '' }); setBell(); } }, '+ Pause'),
-      h('button', { class: 'small', onclick: async () => { const v = await formular('Standard-Klingelzeiten', [], {}, { ok: 'Zurücksetzen', hinweis: 'Ersetzt die Klingelzeiten durch die Vorlage. Der Stundenplan bleibt (er hängt an der Stunden-Nummer).' }); if (v) { S.bell = E.DEFAULT_BELL.map(b => Object.assign({}, b)); save(true); render(); } } }, 'Vorlage')),
-      h('p', { class: 'note' }, 'Gilt für alle Tage. Änderungen werden sofort übernommen. Eine Stunde mit leerer Uhrzeit wird ignoriert.'),
-      h('div', { class: 'list' }, raw.map((b, i) => h('div', { class: 'bellrow' },
-        h('select', { 'aria-label': 'Art', onchange: ev => { b.typ = ev.target.value; setBell(); }, value: b.typ }, h('option', { value: 'stunde' }, 'Stunde'), h('option', { value: 'pause' }, 'Pause')),
-        b.typ === 'stunde' ? h('input', { 'aria-label': 'Nummer', value: b.nr || '', onchange: ev => { b.nr = ev.target.value.trim(); setBell(); } })
-          : h('input', { 'aria-label': 'Name', value: b.name || '', onchange: ev => { b.name = ev.target.value.trim(); setBell(); } }),
-        h('input', { type: 'time', 'aria-label': 'Beginn', value: b.start || '', onchange: ev => { b.start = ev.target.value; setBell(); } }),
-        h('input', { type: 'time', 'aria-label': 'Ende', value: b.ende || '', onchange: ev => { b.ende = ev.target.value; setBell(); } }),
-        h('button', { class: 'small ghost', 'aria-label': 'Entfernen', onclick: () => { raw.splice(i, 1); setBell(); } }, '✕'))))));
+  function viewPlan() {
+    const tage = wochentage(), mo = montag(), heuteWt = new Date().getDay();
+    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Stundenplan'), h('h1', null, 'Stundenplan & Klingel')];
+
+    // Wochenplan: eine Spalte pro Tag, jeder Tag mit seinen eigenen Klingelzeiten
+    w.push(h('section', { class: 'card' }, h('h2', null, '🗓 Wochenplan'),
+      h('p', { class: 'note' }, 'Stunde antippen zum Eintragen. Bei Pausen „Aufsicht“ anhaken – dann kommt vorher eine Erinnerung.'),
+      h('div', { class: 'scroll' }, h('div', { class: 'week', style: `--n:${tage.length}` }, tage.map(t => {
+        const sl = E.tag(addTage(mo, t - 1), S);
+        return h('div', { class: 'day' }, h('h3', { class: t === heuteWt ? 'heute' : '' }, WTL[t]),
+          sl.length ? sl.map(x => {
+            if (x.typ === 'feierabend') return h('div', { class: 'fa' }, `🏁 ${x.name || 'Feierabend'} ${x.von}`);
+            if (x.typ === 'pause') {
+              const id = t + '|' + x.von, on = S.aufsicht.includes(id);
+              return h('div', { class: 'pz' }, h('span', null, `${x.name || 'Pause'} ${x.von}–${x.bis}`),
+                h('label', null, h('input', { type: 'checkbox', checked: on, onchange: ev => { S.aufsicht = S.aufsicht.filter(a => a !== id); if (ev.target.checked) S.aufsicht.push(id); save(true); } }), 'Aufsicht'));
+            }
+            const e = x.eintrag;
+            return h('button', { class: 'slot' + (e ? ' has' : ''), style: e ? fachC(e.fach) : '', onclick: () => planDialog(t, { nr: x.nr, start: x.von, ende: x.bis }) },
+              h('span', { class: 'tm' }, `${x.nr}. · ${x.von}–${x.bis}`),
+              e ? [h('span', null, F(e.fach), ' ', h('b', null, e.klasse || '')), e.raum ? h('small', null, e.raum) : null] : h('small', null, '+'));
+          }) : h('div', { class: 'empty', style: 'text-align:center' }, 'keine Klingelzeiten'));
+      })))));
+
+    w.push(cardKlingel());
+    w.push(cardWebuntis());
 
     // Erinnerungen
     const es = S.einst;
@@ -768,13 +776,232 @@
         chk('aktiv', 'Erinnerungen einschalten'), chk('ton', 'Mit Ton (Gong)'),
         num('vorEnde', 'Minuten vor Stundenende (0 = aus)'), chk('beiEnde', 'Beim Klingeln: „Stunde zu Ende“'),
         chk('pauseBeginn', 'Pausenbeginn melden'), num('vorPauseEnde', 'Minuten vor Pausenende (0 = aus)'),
-        num('aufsichtVorher', 'Minuten vor Pausenaufsicht'), chk('nurEigene', 'Nur für eigene Stunden (sonst jede Klingel)')),
+        num('aufsichtVorher', 'Minuten vor Pausenaufsicht'), chk('feierabend', 'Erinnerung zum Feierabend'),
+        chk('nurEigene', 'Nur für eigene Stunden (sonst jede Klingel)')),
       h('div', { class: 'row', style: 'background:none;padding:0' },
         h('span', { class: 'note' }, 'Systemmitteilungen: ' + (perm === 'granted' ? 'erlaubt ✓' : perm === 'denied' ? 'im Browser blockiert – in den Website-Einstellungen erlauben' : perm)),
         perm === 'default' ? h('button', { class: 'small', onclick: () => Notification.requestPermission().then(render) }, 'Erlauben') : null,
         h('button', { class: 'small', onclick: () => E.testen() }, 'Erinnerung testen')),
       h('p', { class: 'note' }, 'Erinnerungen kommen nur, solange diese Seite oder der Timer geöffnet ist (auch im Hintergrund). Sind beide offen, kommt jede Erinnerung trotzdem nur einmal.')));
     return w;
+  }
+
+  // ---------- Klingelzeiten: jede Zeile gilt für ihre Wochentage (wie ein Wecker am Handy) ----------
+  const tageVon = b => Array.isArray(b.tage) ? b.tage : [1, 2, 3, 4, 5, 6];
+  function konflikte() {
+    const bad = new Set();
+    for (let t = 1; t <= 6; t++) {
+      const l = S.bell.map((b, i) => ({ b, i })).filter(({ b }) => b.typ !== 'feierabend' && tageVon(b).includes(t) && E.hm(b.start) != null && E.hm(b.ende) > E.hm(b.start))
+        .sort((x, y) => E.hm(x.b.start) - E.hm(y.b.start));
+      for (let k = 1; k < l.length; k++) if (E.hm(l[k].b.start) < E.hm(l[k - 1].b.ende)) { bad.add(l[k].i); bad.add(l[k - 1].i); }
+      const fa = S.bell.filter(b => b.typ === 'feierabend' && tageVon(b).includes(t));
+      if (fa.length > 1) S.bell.forEach((b, i) => { if (fa.includes(b)) bad.add(i); });
+    }
+    return bad;
+  }
+  function cardKlingel() {
+    const raw = S.bell, bt = +S.ui.bellTag || 0, bad = konflikte();
+    const setBell = () => { S.bell = raw; save(true); render(); };
+    const neu = typ => {
+      const tg = bt ? [bt] : E.MOFR.slice();
+      raw.push(typ === 'stunde' ? { typ, nr: String(raw.filter(b => b.typ === 'stunde').length + 1), start: '', ende: '', tage: tg }
+        : typ === 'pause' ? { typ, name: 'Pause', start: '', ende: '', tage: tg } : { typ, name: 'Feierabend', start: '', ende: '', tage: tg });
+      setBell();
+    };
+    const zeilen = raw.map((b, i) => ({ b, i })).filter(({ b }) => !bt || tageVon(b).includes(bt))
+      .sort((x, y) => (E.hm(x.b.start) ?? 9999) - (E.hm(y.b.start) ?? 9999) || (x.b.typ === 'feierabend') - (y.b.typ === 'feierabend') || x.i - y.i);
+    return h('section', { class: 'card' }, h('h2', null, '🔔 Klingelzeiten', h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => neu('stunde') }, '+ Stunde'),
+      h('button', { class: 'small', onclick: () => neu('pause') }, '+ Pause'),
+      h('button', { class: 'small', onclick: () => neu('feierabend') }, '+ Feierabend'),
+      h('button', { class: 'small', onclick: async () => { const v = await formular('Vorlage laden', [], {}, { ok: 'Vorlage laden', hinweis: 'Ersetzt alle Klingelzeiten durch die Vorlage (Mo–Fr, Vormittags-, Mittags- und Nachmittagspause, Feierabend). Der Stundenplan bleibt, er hängt an der Stunden-Nummer.' }); if (v) { S.bell = E.vorlage(); save(true); render(); } } }, 'Vorlage')),
+      h('p', { class: 'note' }, 'Jede Zeile gilt an den blau markierten Tagen – wie ein Wecker am Handy. Ist z. B. die Mittagspause am Dienstag anders: oben „Di“ wählen, bei der Zeile „✂ nur Di“ tippen und die Zeit ändern. Rot umrandet = Zeiten überschneiden sich.'),
+      h('div', { class: 'seg', style: 'align-self:flex-start' }, [[0, 'Alle Tage'], [1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa']].map(([t, l]) =>
+        h('button', { class: bt === t ? 'on' : '', onclick: () => { S.ui.bellTag = t; save(true); render(); } }, l))),
+      zeilen.length ? h('div', { class: 'list' }, zeilen.map(({ b, i }) => {
+        const tg = tageVon(b), fa = b.typ === 'feierabend';
+        return h('div', { class: 'bellrow' + (bad.has(i) ? ' warn' : '') + (tg.length ? '' : ' leer') },
+          h('select', { 'aria-label': 'Art', value: b.typ, onchange: ev => {
+            b.typ = ev.target.value;
+            if (b.typ === 'feierabend') { b.name = 'Feierabend'; b.ende = ''; }
+            else if (b.typ === 'pause' && (!b.name || b.name === 'Feierabend')) b.name = 'Pause';
+            else if (b.typ === 'stunde' && !b.nr) b.nr = String(raw.filter(x => x.typ === 'stunde').length);
+            setBell();
+          } }, h('option', { value: 'stunde' }, 'Stunde'), h('option', { value: 'pause' }, 'Pause'), h('option', { value: 'feierabend' }, 'Feierabend')),
+          b.typ === 'stunde' ? h('input', { 'aria-label': 'Stunden-Nummer', placeholder: 'Nr.', value: b.nr || '', onchange: ev => { b.nr = ev.target.value.trim(); setBell(); } })
+            : h('input', { 'aria-label': 'Name', value: b.name || '', list: 'pausennamen', onchange: ev => { b.name = ev.target.value.trim(); setBell(); } }),
+          h('input', { type: 'time', 'aria-label': fa ? 'Uhrzeit' : 'Beginn', value: b.start || '', onchange: ev => { b.start = ev.target.value; setBell(); } }),
+          fa ? h('span') : h('input', { type: 'time', 'aria-label': 'Ende', value: b.ende || '', onchange: ev => { b.ende = ev.target.value; setBell(); } }),
+          h('span', { class: 'wd', role: 'group', 'aria-label': 'Wochentage' }, [1, 2, 3, 4, 5, 6].map(t => h('button', {
+            class: tg.includes(t) ? 'on' : '', title: WTL[t], 'aria-pressed': tg.includes(t) ? 'true' : 'false',
+            onclick: () => { b.tage = tg.includes(t) ? tg.filter(x => x !== t) : [...tg, t].sort(); setBell(); } }, WT[t]))),
+          h('span', { class: 'btns' },
+            bt && tg.length > 1 ? h('button', { class: 'small', title: `Für ${WTL[bt]} eine eigene Zeile anlegen, die du getrennt ändern kannst`,
+              onclick: () => { b.tage = tg.filter(x => x !== bt); raw.push(Object.assign({}, b, { tage: [bt] })); setBell(); } }, '✂ nur ' + WT[bt]) : null,
+            h('button', { class: 'small ghost', title: 'Duplizieren', 'aria-label': 'Duplizieren', onclick: () => { raw.splice(i + 1, 0, Object.assign({}, b, { tage: tg.slice() })); setBell(); } }, '⧉'),
+            h('button', { class: 'small ghost', title: 'Entfernen', 'aria-label': 'Entfernen', onclick: () => { raw.splice(i, 1); setBell(); } }, '✕')));
+      })) : h('div', { class: 'empty' }, 'An diesem Tag keine Klingelzeiten.'),
+      h('datalist', { id: 'pausennamen' }, ['Vormittagspause', 'Mittagspause', 'Nachmittagspause', 'Pause'].map(v => h('option', { value: v }))));
+  }
+
+  // ---------- WebUntis: iCal-Link oder .ics-Datei ----------
+  function icsDatum(f) {
+    if (!f) return null;
+    const m = /^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d)(\d\d)?(Z)?)?$/.exec(f.v.trim());
+    if (!m || !m[4]) return null;   // ganztägige Einträge (Ferien) zählen nicht
+    return m[7] ? new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5])) : new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+  function icsLesen(txt) {
+    const lines = String(txt).replace(/\r?\n[ \t]/g, '').split(/\r?\n/), ev = [];
+    let cur = null;
+    for (const l of lines) {
+      if (l === 'BEGIN:VEVENT') cur = {};
+      else if (l === 'END:VEVENT') { if (cur) ev.push(cur); cur = null; }
+      else if (cur) { const m = /^([A-Z-]+)((?:;[^:]*)?):(.*)$/.exec(l); if (m && !cur[m[1]]) cur[m[1]] = { p: m[2], v: m[3].replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim() }; }
+    }
+    return ev.map(e => ({ start: icsDatum(e.DTSTART), ende: icsDatum(e.DTEND), sum: (e.SUMMARY || {}).v || '', ort: (e.LOCATION || {}).v || '',
+      besch: (e.DESCRIPTION || {}).v || '', status: (e.STATUS || {}).v || '' }))
+      .filter(e => e.start && e.ende && e.ende > e.start && e.ende - e.start < 6 * 3600e3 && !/CANCEL/i.test(e.status));
+  }
+  const fachRaten = t => {
+    const u = ' ' + t.toUpperCase() + ' ';
+    if (/KFZ|[^A-Z]FT[^A-Z]|FACHTHEO|TECHNOLOG/.test(u)) return 'FT';
+    if (/[^A-Z]ET[^A-Z]|ELEKTR/.test(u)) return 'ET';
+    if (/[^A-Z]FR[^A-Z]|RECHN|MATHE/.test(u)) return 'FR';
+    if (/[^A-Z]PX[^A-Z]|PRAX|WERKST|[^A-Z]WS[^A-Z]|[^A-Z]PR[^A-Z]/.test(u)) return 'PX';
+    if (/[^A-Z]MK[^A-Z]|METHOD/.test(u)) return 'MK';
+    return '';
+  };
+  const klasseRaten = t => { const m = /\b(\d{1,2}[A-Za-z]{1,3}|[A-Z]{2,}(?:-[A-Za-z0-9]+)+)\b/.exec(t); return m ? m[1] : ''; };
+
+  async function icsHolen(url) {
+    url = url.trim().replace(/^webcal:/i, 'https:');
+    if (!/^https:\/\/\S+$/i.test(url)) throw new Error('Der Link muss mit https:// oder webcal:// beginnen.');
+    if (window.desk && window.desk.ical) return await window.desk.ical(url);
+    let r;
+    try { r = await fetch(url, { cache: 'no-store' }); }
+    catch (e) { throw new Error('Der Browser darf den WebUntis-Link nicht direkt abrufen (Sperre des Servers). Öffne den Link in einem neuen Tab, speichere die .ics-Datei und lade sie hier über „.ics-Datei hochladen“. In der Windows-App klappt der Link direkt.'); }
+    if (!r.ok) throw new Error('WebUntis antwortet mit Fehler ' + r.status + '. Ist der Link noch gültig?');
+    return await r.text();
+  }
+
+  async function icsImport(txt) {
+    const ev = icsLesen(txt);
+    if (!ev.length) throw new Error('In der Datei sind keine Stunden mit Uhrzeit.');
+    // Bezugswoche: die Woche mit den meisten Stunden ab dieser Woche (sonst die vollste überhaupt)
+    const wkey = d => iso(addTage(d, -((d.getDay() + 6) % 7)));
+    const wochen = new Map();
+    ev.forEach(e => { const k = wkey(e.start); wochen.set(k, (wochen.get(k) || 0) + 1); });
+    const ab = iso(montag());
+    const kand = [...wochen].filter(([k]) => k >= ab).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 6);
+    const pool = kand.length ? kand : [...wochen];
+    const woche = pool.reduce((a, b) => b[1] > a[1] ? b : a)[0];
+    const wk = ev.filter(e => wkey(e.start) === woche && e.start.getDay() >= 1 && e.start.getDay() <= 6);
+
+    // gleiche Fach/Klasse-Kombination nur einmal zuordnen
+    const combos = new Map();
+    wk.forEach(e => { const k = e.sum + '|' + e.besch; if (!combos.has(k)) combos.set(k, { sum: e.sum, besch: e.besch, n: 0 }); combos.get(k).n++; });
+    const cl = [...combos.values()];
+    const felder = [];
+    cl.forEach((c, i) => {
+      felder.push({ k: 'f' + i, label: `„${c.sum || '(ohne Titel)'}“${c.besch ? ' – ' + c.besch.slice(0, 60) : ''} (${c.n}× pro Woche)`, type: 'select', options: fachOptionen('– nicht übernehmen –'), def: fachRaten(c.sum + ' ' + c.besch) });
+      felder.push({ k: 'k' + i, label: 'Klasse', def: klasseRaten(c.sum + ' ' + c.besch), list: klassen() });
+    });
+    felder.push({ k: 'bell', label: 'Klingelzeiten dieser Tage aus WebUntis übernehmen (Pausen und Feierabend werden aus den Lücken abgeleitet)', type: 'checkbox', def: true });
+    const tageImp = [...new Set(wk.map(e => e.start.getDay()))].sort();
+    const mo = parseISO(woche);
+    const v = await formular('Aus WebUntis übernehmen', felder, {}, { ok: 'Übernehmen',
+      hinweis: `Woche ab ${pad(mo.getDate())}.${pad(mo.getMonth() + 1)}.: ${wk.length} Stunden an ${tageImp.map(t => WT[t]).join(', ')}. Ordne jeder Zeile dein Fach zu. Der bisherige Stundenplan dieser Tage wird ersetzt.` });
+    if (!v) return;
+
+    const zu = new Map(cl.map((c, i) => [c.sum + '|' + c.besch, { fach: v['f' + i], klasse: v['k' + i] }]));
+    const altBell = S.bell.map(b => Object.assign({}, b, { tage: tageVon(b).slice() }));
+    const neueBell = [], neuerPlan = [];
+    let ohneSlot = 0;
+    tageImp.forEach(t => {
+      const l = wk.filter(e => e.start.getDay() === t).sort((a, b) => a.start - b.start)
+        .filter((e, k, arr) => k === 0 || +e.start !== +arr[k - 1].start);
+      const hmv = d => uhr(d);
+      if (v.bell) {
+        const altTag = altBell.filter(b => b.tage.includes(t));
+        const altSt = altTag.filter(b => b.typ === 'stunde' && E.hm(b.start) != null && E.hm(b.ende) > E.hm(b.start));
+        const altFa = altTag.find(b => b.typ === 'feierabend');
+        const mins = d => d.getHours() * 60 + d.getMinutes();
+        const ueber = (b, e) => E.hm(b.start) < mins(e.ende) && E.hm(b.ende) > mins(e.start);
+        const benutzt = new Set();
+        // Stundennummer: gleiche Anfangszeit, sonst die erste überlappende Schulstunde, sonst fortlaufend
+        const nrFuer = e => {
+          const b = altSt.find(b => b.start === hmv(e.start) && !benutzt.has(String(b.nr))) || altSt.find(b => ueber(b, e) && !benutzt.has(String(b.nr)));
+          let nr = b ? String(b.nr) : '';
+          for (let z = 1; !nr || benutzt.has(nr); z++) nr = 'W' + z;
+          benutzt.add(nr); return nr;
+        };
+        // Schulstunden ohne eigenen Unterricht bleiben (Freistunden zum Eintragen)
+        l.forEach(e => nrFuer(e)); benutzt.clear();
+        const frei = altSt.filter(b => !l.some(e => ueber(b, e)));
+        l.forEach((e, k) => {
+          const von = hmv(e.start), bis = hmv(e.ende), nr = nrFuer(e);
+          neueBell.push({ typ: 'stunde', nr, start: von, ende: bis, tage: [t] });
+          const z = zu.get(e.sum + '|' + e.besch);
+          if (z && z.fach) neuerPlan.push({ tag: t, nr, fach: z.fach, klasse: z.klasse, raum: e.ort });
+          const nx = l[k + 1];
+          if (nx) {
+            const gap = (nx.start - e.ende) / 6e4, sm = e.ende.getHours() * 60 + e.ende.getMinutes(), em = sm + gap;
+            // bisherige Pausen der Schule behalten, wenn sie in diese Lücke fallen (WebUntis liefert nur die eigenen Stunden)
+            const alt = altTag.filter(b => b.typ === 'pause' && E.hm(b.start) >= sm && E.hm(b.start) < em);
+            alt.forEach(b => neueBell.push({ typ: 'pause', name: b.name || 'Pause', start: b.start, ende: E.hm(b.ende) <= em ? b.ende : hmv(nx.start), tage: [t] }));
+            const mittag = sm < 14 * 60 && em > 11 * 60 + 30 && gap >= 30;
+            if (!alt.length && gap >= 5 && (gap <= 35 || mittag))
+              neueBell.push({ typ: 'pause', name: mittag ? 'Mittagspause' : sm < 12 * 60 ? 'Vormittagspause' : 'Nachmittagspause', start: bis, ende: hmv(nx.start), tage: [t] });
+          }
+        });
+        frei.forEach(b => { if (!benutzt.has(String(b.nr))) { benutzt.add(String(b.nr)); neueBell.push({ typ: 'stunde', nr: String(b.nr), start: b.start, ende: b.ende, tage: [t] }); } });
+        const last = hmv(l[l.length - 1].ende);
+        neueBell.push({ typ: 'feierabend', name: 'Feierabend', start: altFa && altFa.start > last ? altFa.start : last, ende: '', tage: [t] });
+      } else {
+        const sl = E.tag(addTage(montag(), t - 1), S).filter(x => x.typ === 'stunde');
+        l.forEach(e => {
+          const z = zu.get(e.sum + '|' + e.besch); if (!z || !z.fach) return;
+          const von = e.start.getHours() * 60 + e.start.getMinutes(), bis = e.ende.getHours() * 60 + e.ende.getMinutes();
+          const treffer = sl.filter(x => E.hm(x.von) < bis && E.hm(x.bis) > von);
+          if (!treffer.length) ohneSlot++;
+          treffer.forEach(x => neuerPlan.push({ tag: t, nr: String(x.nr), fach: z.fach, klasse: z.klasse, raum: e.ort }));
+        });
+      }
+    });
+    if (v.bell) {
+      // importierte Tage aus den alten Zeilen herausnehmen, gleiche neue Zeilen über die Tage zusammenfassen
+      const rest = altBell.map(b => Object.assign(b, { tage: b.tage.filter(t => !tageImp.includes(t)) })).filter(b => b.tage.length);
+      const merged = new Map();
+      [...rest, ...neueBell].forEach(b => { const k = [b.typ, b.nr || '', b.name || '', b.start, b.ende].join('|'); if (merged.has(k)) merged.get(k).tage.push(...b.tage); else merged.set(k, b); });
+      merged.forEach(b => b.tage.sort());
+      S.bell = [...merged.values()];
+      S.aufsicht = S.aufsicht.filter(a => !tageImp.includes(+a.split('|')[0]) || S.bell.some(b => b.typ === 'pause' && tageVon(b).includes(+a.split('|')[0]) && b.start === a.split('|')[1]));
+    }
+    S.plan = S.plan.filter(e => !tageImp.includes(+e.tag)).concat(neuerPlan);
+    if (!S.ui.seit) S.ui.seit = heute();
+    S.ui.icalStand = Date.now();
+    save(true); render();
+    E.toast({ art: 'pause', titel: 'WebUntis übernommen', text: `${neuerPlan.length} Stunden eingetragen` + (ohneSlot ? `, ${ohneSlot} passten zu keiner Klingelzeit` : '') + '. Bitte im Wochenplan kontrollieren.' });
+  }
+  $('icsIn').onchange = async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    try { await icsImport(await f.text()); } catch (e) { E.toast({ art: 'ende', titel: 'WebUntis-Import', text: String(e.message || e) }); }
+  };
+  function cardWebuntis() {
+    const inp = h('input', { type: 'url', placeholder: 'https://…webuntis.com/WebUntis/Ical.do?…', value: S.ui.icalUrl || '', style: 'flex:1 1 260px', 'aria-label': 'iCal-Link aus WebUntis' });
+    return h('section', { class: 'card' }, h('h2', null, '📥 Aus WebUntis übernehmen'),
+      h('p', { class: 'note' }, 'In WebUntis unter Profil → Freigaben den iCal-Link (Abo-Link) kopieren, oder den Stundenplan als .ics-Datei herunterladen. Übernommen wird eine typische Woche als Wochenplan – Vertretungen und Entfälle einzelner Tage nicht.'),
+      h('div', { class: 'row', style: 'background:none;padding:0' }, inp,
+        h('button', { class: 'primary small', onclick: async ev => {
+          const b = ev.target; b.disabled = true; b.textContent = 'Lädt …';
+          try { S.ui.icalUrl = inp.value.trim(); save(true); await icsImport(await icsHolen(inp.value)); }
+          catch (e) { E.toast({ art: 'ende', titel: 'WebUntis-Import', text: String(e.message || e) }); }
+          finally { b.disabled = false; b.textContent = 'Abrufen'; }
+        } }, 'Abrufen'),
+        h('button', { class: 'small', onclick: () => $('icsIn').click() }, '.ics-Datei hochladen')),
+      h('p', { class: 'note' }, '🔒 Der Link ist wie ein Passwort zu deinem Stundenplan. Er bleibt nur auf diesem Gerät und geht nicht in die Team-Datei.' +
+        (S.ui.icalStand ? ' Zuletzt übernommen: ' + new Date(S.ui.icalStand).toLocaleString('de-DE') + '.' : '')));
   }
 
   // ---------- Team & Austausch ----------
@@ -879,7 +1106,7 @@
       h('div', { class: 'row', style: 'background:none;padding:0' },
         h('button', { class: 'small', onclick: () => download(`kfz-team-${heute()}.json`, paket()) }, '⇡ Team-Daten exportieren'),
         h('button', { class: 'small', onclick: () => $('fileIn').click() }, '⇣ Datei importieren'),
-        h('button', { class: 'small', onclick: () => download(`kfz-sicherung-${heute()}.json`, { format: 'kfz-arbeitsplatz-sicherung', version: 1, daten: S }) }, '💾 Komplette Sicherung'))));
+        h('button', { class: 'small', onclick: () => download(`kfz-sicherung-${heute()}.json`, { format: 'kfz-arbeitsplatz-sicherung', version: 1, daten: Object.assign({}, S, { ui: Object.assign({}, S.ui, { icalUrl: undefined }) }) }) }, '💾 Komplette Sicherung'))));
     return w;
   }
 

@@ -13,8 +13,10 @@ Das Repository enthält:
 
 Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX), Methodenkompetenz (MK).
 
-- **Stundenplan & Klingel:** Wochenplan antippen und Fach, Klasse und Raum eintragen. Klingelzeiten anpassen. Bei Pausen „Aufsicht“ anhaken.
-- **Erinnerungen:** x Minuten vor Stundenende, beim Klingeln, bei Pausenbeginn, kurz vor Pausenende und vor der Pausenaufsicht – mit Gong, Hinweis im Fenster und Systemmitteilung. Doppelstunden werden zusammengefasst. „Heute stumm“ für Ausflugstage.
+- **Stundenplan & Klingel:** Wochenplan antippen und Fach, Klasse und Raum eintragen. Bei Pausen „Aufsicht“ anhaken.
+- **Klingelzeiten pro Wochentag** – wie ein Wecker am Handy: Jede Zeile (Stunde, Pause, Feierabend) gilt an den markierten Tagen. Ist die Mittagspause an einem Tag anders: Tag wählen, „✂ nur Di“ tippen, Zeit ändern. Überschneidungen werden rot markiert. Vorlage: Vormittags-, Mittags- und Nachmittagspause sowie Feierabend.
+- **WebUntis:** iCal-Link einfügen oder .ics-Datei hochladen. Übernommen wird eine typische Woche als Wochenplan inklusive Zeiten; Pausen und Freistunden der Schule bleiben erhalten. Im Browser sperrt WebUntis den direkten Abruf des Links vermutlich – dann die .ics-Datei herunterladen und hochladen. In der Windows-App wird der Link direkt abgerufen.
+- **Erinnerungen:** x Minuten vor Stundenende, beim Klingeln, bei Pausenbeginn, kurz vor Pausenende, vor der Pausenaufsicht und zum Feierabend – mit Gong, Hinweis im Fenster und Systemmitteilung. Doppelstunden werden zusammengefasst. „Heute stumm“ für Ausflugstage.
 - **Wie liefen deine Stunden?** Nach jeder Stunde ein Klick (geschafft / nicht ganz / fiel aus) – das Thema rückt in der Stoffverteilung weiter.
 - **Stoffverteilung** pro Fach und Klasse, mit geplanten und gebrauchten Stunden; Themen lassen sich aus einer anderen Klasse übernehmen.
 - **Klassenansicht:** Stand aller Fächer einer Klasse auf einen Blick.

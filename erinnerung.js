@@ -14,19 +14,25 @@
   ];
   const fach = k => FAECHER.find(f => f.k === k) || { k: String(k || ''), name: String(k || '–'), icon: '📘', ende: '', fremd: true };
 
+  // Vorlage: jede Zeile gilt für die angehakten Wochentage (1 = Mo … 6 = Sa), wie ein Wecker am Handy
+  const MOFR = [1, 2, 3, 4, 5];
   const DEFAULT_BELL = [
     { typ: 'stunde', nr: '1', start: '07:50', ende: '08:40' },
     { typ: 'stunde', nr: '2', start: '08:40', ende: '09:30' },
     { typ: 'stunde', nr: '3', start: '09:30', ende: '10:20' },
-    { typ: 'pause', name: 'Pause', start: '10:20', ende: '10:35' },
+    { typ: 'pause', name: 'Vormittagspause', start: '10:20', ende: '10:35' },
     { typ: 'stunde', nr: '4', start: '10:35', ende: '11:25' },
     { typ: 'stunde', nr: '5', start: '11:25', ende: '12:15' },
     { typ: 'pause', name: 'Mittagspause', start: '12:15', ende: '13:15' },
     { typ: 'stunde', nr: '6', start: '13:15', ende: '14:05' },
     { typ: 'stunde', nr: '7', start: '14:05', ende: '14:55' },
-    { typ: 'pause', name: 'Pause', start: '14:55', ende: '15:05' },
+    { typ: 'pause', name: 'Nachmittagspause', start: '14:55', ende: '15:05' },
     { typ: 'stunde', nr: '8', start: '15:05', ende: '15:55' },
-  ];
+    { typ: 'feierabend', name: 'Feierabend', start: '16:00', ende: '' },
+  ].map(b => Object.assign(b, { tage: MOFR.slice() }));
+  // alte Vorlage (ohne Wochentage) – wird beim Laden durch die neue ersetzt
+  const ALT_BELL = '07:50-08:40|08:40-09:30|09:30-10:20|10:20-10:35|10:35-11:25|11:25-12:15|12:15-13:15|13:15-14:05|14:05-14:55|14:55-15:05|15:05-15:55';
+  const TYPEN = ['stunde', 'pause', 'feierabend'];
   const DEFAULT_EINST = {
     aktiv: true,        // Erinnerungen überhaupt
     vorEnde: 5,         // Minuten vor Stundenende (0 = aus)
@@ -36,6 +42,7 @@
     aufsichtVorher: 3,  // Minuten vor der Pausenaufsicht
     nurEigene: true,    // nur an Tagen/Stunden mit eigenem Unterricht
     ton: true,
+    feierabend: true,   // Erinnerung zum Feierabend
     stillAm: '',        // Datum, an dem alles stumm ist (z. B. Ausflug)
   };
 
@@ -46,13 +53,17 @@
   const uhr = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
   const norm = s => String(s || '').trim().toUpperCase();
 
+  const vorlage = () => DEFAULT_BELL.map(b => Object.assign({}, b, { tage: b.tage.slice() }));
+  const gilt = (b, wt) => !Array.isArray(b.tage) || b.tage.includes(wt);   // ohne Wochentage: jeden Tag (ältere Daten)
+
   function laden() {
     let s = null;
     try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
     s = s && typeof s === 'object' ? s : {};
-    const bell = Array.isArray(s.bell) ? s.bell.filter(b => b && (b.typ === 'stunde' || b.typ === 'pause')) : [];
+    let bell = Array.isArray(s.bell) ? s.bell.filter(b => b && TYPEN.includes(b.typ)) : [];
+    if (bell.every(b => !Array.isArray(b.tage)) && bell.map(b => b.start + '-' + b.ende).join('|') === ALT_BELL) bell = [];
     return Object.assign({}, s, {
-      bell: bell.length ? bell : DEFAULT_BELL.map(b => Object.assign({}, b)),
+      bell: bell.length ? bell : vorlage(),
       plan: Array.isArray(s.plan) ? s.plan.filter(e => e && typeof e === 'object') : [],
       aufsicht: Array.isArray(s.aufsicht) ? s.aufsicht.filter(a => typeof a === 'string') : [],
       einst: Object.assign({}, DEFAULT_EINST, s.einst || {}),
@@ -64,10 +75,10 @@
     s = s || laden();
     const wt = new Date(d).getDay();
     return s.bell
-      .filter(b => hm(b.start) != null && hm(b.ende) != null && hm(b.ende) > hm(b.start))
-      .sort((a, b) => hm(a.start) - hm(b.start))
+      .filter(b => gilt(b, wt) && hm(b.start) != null && (b.typ === 'feierabend' || (hm(b.ende) != null && hm(b.ende) > hm(b.start))))
+      .sort((a, b) => hm(a.start) - hm(b.start) || (a.typ === 'feierabend') - (b.typ === 'feierabend'))
       .map((b, i) => Object.assign({}, b, {
-        i, von: b.start, bis: b.ende, start: at(d, b.start), ende: at(d, b.ende),
+        i, von: b.start, bis: b.typ === 'feierabend' ? b.start : b.ende, start: at(d, b.start), ende: at(d, b.typ === 'feierabend' ? b.start : b.ende),
         eintrag: b.typ === 'stunde' ? s.plan.find(e => +e.tag === wt && String(e.nr) === String(b.nr) && e.fach) || null : null,
         aufsicht: b.typ === 'pause' && s.aufsicht.includes(wt + '|' + b.start),
       }));
@@ -88,10 +99,8 @@
     if (!E.aktiv || E.stillAm === key) return out;
     const sl = tag(d, s);
     const eigene = sl.some(x => x.eintrag), aufs = sl.some(x => x.aufsicht);
-    if (!eigene && !aufs) return out;
-    if (!eigene && E.nurEigene && !aufs) return out;
-    if ((wt === 0 || wt === 6) && !eigene) return out;
-    const rel = x => x && x.typ === 'stunde' && (x.eintrag || (!E.nurEigene && eigene));
+    if (!eigene && !aufs && (E.nurEigene || wt === 0 || wt === 6)) return out;
+    const rel = x => x && x.typ === 'stunde' && (x.eintrag || !E.nurEigene);
     const relIdx = sl.map((x, k) => rel(x) ? k : -1).filter(k => k >= 0);
     const erste = relIdx[0], letzte = relIdx[relIdx.length - 1];
     const add = (art, x, t, titel, text) => out.push({ id: `${key}|${art}|${x.von}`, art, t, titel, text });
@@ -106,12 +115,18 @@
           (x.eintrag ? label(x.eintrag) + ' – ' : '') + `Klingel um ${x.bis}. ` + (f && f.ende ? f.ende : 'Zeit zum Abschließen.'));
         if (E.beiEnde) {
           let text;
-          if (nx && nx.typ === 'pause') text = `${nx.name || 'Pause'} bis ${nx.bis}.` + (nx.aufsicht ? ' Du hast Pausenaufsicht!' : '');
-          else if (nx && rel(nx) && nx.eintrag) text = 'Als Nächstes: ' + label(nx.eintrag) + '.';
+          if (nx && nx.typ === 'pause' && nx.start - x.ende < 6e5) text = `${nx.name || 'Pause'} bis ${nx.bis}.` + (nx.aufsicht ? ' Du hast Pausenaufsicht!' : '');
+          else if (nx && rel(nx) && nx.eintrag && nx.start - x.ende < 6e5) text = 'Als Nächstes: ' + label(nx.eintrag) + '.';
           else if (k >= letzte) text = 'Dein Unterricht für heute ist zu Ende.';
-          else text = 'Stundenwechsel.';
+          else {
+            const n2 = sl.slice(k + 1).find(rel);
+            text = n2 && n2.eintrag ? `Freistunde. Nächste Stunde um ${n2.von}: ${label(n2.eintrag)}.` : 'Stundenwechsel.';
+          }
           add('ende', x, x.ende, 'Stunde zu Ende', text);
         }
+      } else if (x.typ === 'feierabend') {
+        if (E.feierabend) add('feierabend', x, x.start, x.name && x.name !== 'Feierabend' ? x.name : 'Feierabend 🎉',
+          'Schönen Feierabend! Schau kurz auf die To-dos für morgen.');
       } else if (x.typ === 'pause') {
         const drin = erste != null && k > erste && k < letzte;
         const vorher = sl[k - 1], nachher = sl[k + 1];
@@ -210,7 +225,7 @@
     let box = document.querySelector('.erin-box');
     if (!box) { box = document.createElement('div'); box.className = 'erin-box'; box.setAttribute('aria-live', 'assertive'); document.body.appendChild(box); }
     const el = document.createElement('div'); el.className = 'erin'; el.dataset.art = e.art || '';
-    const i = document.createElement('i'); i.textContent = e.art === 'aufsicht' ? '👀' : e.art && e.art.startsWith('pause') ? '☕' : '🔔';
+    const i = document.createElement('i'); i.textContent = e.art === 'aufsicht' ? '👀' : e.art && e.art.startsWith('pause') ? '☕' : e.art === 'feierabend' ? '🏁' : '🔔';
     const b = document.createElement('b'); b.textContent = e.titel;
     const p = document.createElement('p'); p.textContent = e.text || '';
     const x = document.createElement('button'); x.textContent = '✕'; x.title = 'Schließen'; x.setAttribute('aria-label', 'Hinweis schließen');
@@ -251,5 +266,5 @@
   }
 
   window.Erinnerung = { KEY, FAECHER, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
-    blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
+    MOFR, vorlage, gilt, blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
 })();

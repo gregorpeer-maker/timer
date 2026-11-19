@@ -1,5 +1,5 @@
 // Unterrichtstimer – Windows-App: rahmenloses, durchsichtiges Fenster, in der Mini-Ansicht immer im Vordergrund.
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -72,6 +72,15 @@ function openWorkplace() {
 
 ipcMain.on('mode', (e, m, size) => setMode(m, size));
 ipcMain.on('arbeitsplatz', openWorkplace);
+// WebUntis-Stundenplan (iCal) abrufen: im Hauptprozess, weil der Browser-Teil vom Server gesperrt wird
+ipcMain.handle('ical', async (e, url) => {
+  if (!/^https:\/\/\S+$/i.test(String(url))) throw new Error('Der Link muss mit https:// beginnen.');
+  const r = await net.fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('WebUntis antwortet mit Fehler ' + r.status + '. Ist der Link noch gültig?');
+  const t = await r.text();
+  if (t.length > 10e6 || !t.includes('BEGIN:VCALENDAR')) throw new Error('Das ist kein Kalender (iCal).');
+  return t;
+});
 ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: Stundenende übernehmen und Timer zeigen
   if (!win) return;
   win.webContents.send('auftrag', String(ende || ''), String(titel || ''));
