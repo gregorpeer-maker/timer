@@ -261,13 +261,19 @@
       <div class="line">
         <label for="endClock">Stundenende um</label>
         <input id="endClock" type="time">
+        <button id="endBell" title="Ende der laufenden (oder nächsten) Stunde aus dem Stundenplan im Arbeitsplatz übernehmen">🔔 Klingel</button>
         <button id="endClear">Leeren</button>
+      </div>
+      <div class="line">
+        <button id="wsBtn" title="Arbeitsplatz mit Stundenplan, Stoffverteilung, To-dos und Team öffnen">🏠 Arbeitsplatz</button>
+        <span class="note" id="bellNote"></span>
       </div>
       <p class="note">Ohne Uhrzeit endet die Stunde nach der Plandauer ab Start. Mit Uhrzeit zählt die Klingel: wer spät startet, ist sofort im Verzug. Pausen laufen gegen die Uhr und erzeugen ebenfalls Verzug.</p>
     </div>
   </section>
 </main>
 
+<script src="erinnerung.js"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -699,6 +705,28 @@
     else if (k === 'm' && !window.desk) togglePip();
     else if (e.key === 'Escape' && document.body.classList.contains('fs')) (deskFs ? deskFs() : setFs(false));
   });
+
+  // ---------- Verbindung zum Arbeitsplatz: Klingelzeiten und Erinnerungen ----------
+  const ERIN = window.Erinnerung;
+  function uebernehmen(ende, titel) {
+    if (!/^\d\d:\d\d$/.test(ende || '')) return;
+    if (S.status !== 'idle') { $('bellNote').textContent = `Stundenende ${ende} erst nach dem Zurücksetzen übernehmbar.`; return; }
+    S.endClock = ende; save(); renderList(); tick();
+    $('bellNote').textContent = `Stundenende ${ende}` + (titel ? ` (${titel})` : '') + ' aus dem Stundenplan.';
+  }
+  if (ERIN) {
+    ERIN.starten();
+    $('endBell').onclick = () => {
+      const k = ERIN.klingel(Date.now());
+      if (k) uebernehmen(k.bis, k.titel); else $('bellNote').textContent = 'Heute keine Stunde mehr laut Klingelzeiten.';
+    };
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get('ende')) { uebernehmen(q.get('ende'), q.get('titel') || ''); history.replaceState(null, '', location.pathname); }
+    } catch (e) {}
+    if (desk && desk.onAuftrag) desk.onAuftrag((ende, titel) => uebernehmen(ende, titel));
+  } else { $('endBell').hidden = true; }
+  $('wsBtn').onclick = () => { if (desk && desk.arbeitsplatz) desk.arbeitsplatz(); else window.open('arbeitsplatz.html', 'arbeitsplatz'); };
 
   renderList(); tick();
   // Taktgeber im Worker: läuft auch dann sekundengenau, wenn der Tab im Hintergrund liegt

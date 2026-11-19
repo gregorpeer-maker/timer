@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const SIZES = [[260, 195], [340, 250], [460, 340]];   // Mini-Ansicht: klein, mittel, groß
-let win = null, mode = 'widget', pos = null;
+let win = null, ws = null, mode = 'widget', pos = null;
 const posFile = () => path.join(app.getPath('userData'), 'fenster.json');
 
 function loadPos() {
@@ -57,12 +57,32 @@ function create() {
   win.on('closed', () => { win = null; });
 }
 
+// Arbeitsplatz: normales Fenster neben dem Timer
+function openWorkplace() {
+  if (ws) { if (ws.isMinimized()) ws.restore(); ws.show(); ws.focus(); return; }
+  const a = screen.getPrimaryDisplay().workArea;
+  ws = new BrowserWindow({
+    width: Math.min(1280, a.width - 40), height: Math.min(860, a.height - 40), title: 'KFZ-Arbeitsplatz', backgroundColor: '#0e1621',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
+  });
+  ws.removeMenu();
+  ws.loadFile(path.join(__dirname, 'arbeitsplatz.html'));
+  ws.on('closed', () => { ws = null; });
+}
+
 ipcMain.on('mode', (e, m, size) => setMode(m, size));
+ipcMain.on('arbeitsplatz', openWorkplace);
+ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: Stundenende übernehmen und Timer zeigen
+  if (!win) return;
+  win.webContents.send('auftrag', String(ende || ''), String(titel || ''));
+  win.show(); win.focus();
+});
 ipcMain.on('quit', () => app.quit());
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
+  app.setAppUserModelId('Unterrichtstimer');   // nötig für Windows-Mitteilungen
   app.whenReady().then(create);
   app.on('window-all-closed', () => app.quit());
 }

@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KFZ-Arbeitsplatz</title>
+<style>
+  :root {
+    --bg: #eef1f5; --side: #ffffff; --panel: #ffffff; --panel2: #f3f5f8; --fg: #15202b; --muted: #5d6b7a; --line: #d5dce4;
+    --accent: #1f6fd6; --on-accent: #ffffff; --warn: #a86400; --crit: #c92a2a; --good: #19804a; --hi: #c47a00;
+    --FT: #1f6fd6; --ET: #9a7400; --FR: #0c8a80; --PX: #c4661a; --MK: #7a4fc9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1621; --side: #111b27; --panel: #17222f; --panel2: #1d2938; --fg: #e6edf3; --muted: #8d9aa8; --line: #283646;
+      --accent: #5aa8ff; --on-accent: #06131f; --warn: #f5a524; --crit: #f46a6a; --good: #45d182; --hi: #f5b13d;
+      --FT: #5aa8ff; --ET: #f2c94c; --FR: #2fc4b4; --PX: #f0a04b; --MK: #b394f5;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1621; --side: #111b27; --panel: #17222f; --panel2: #1d2938; --fg: #e6edf3; --muted: #8d9aa8; --line: #283646;
+    --accent: #5aa8ff; --on-accent: #06131f; --warn: #f5a524; --crit: #f46a6a; --good: #45d182; --hi: #f5b13d;
+    --FT: #5aa8ff; --ET: #f2c94c; --FR: #2fc4b4; --PX: #f0a04b; --MK: #b394f5;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+  a { color: var(--accent); }
+  button, input, select, textarea { font: inherit; color: var(--fg); }
+  button { background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  button.small { padding: 4px 9px; font-size: 13px; }
+  button.ghost { background: none; border-color: transparent; }
+  button.danger { color: var(--crit); }
+  input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Kopfleiste */
+  .top { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--side); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--fg); text-decoration: none; margin-right: 6px; }
+  .brand .logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 19px; }
+  #q { flex: 1 1 220px; max-width: 460px; border-radius: 999px; padding: 8px 16px; }
+  .clock { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; margin-left: auto; }
+  .me { text-decoration: none; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+  #menuBtn { display: none; }
+
+  .shell { flex: 1; display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 0; }
+  aside { background: var(--side); border-right: 1px solid var(--line); padding: 12px 10px; overflow-y: auto; }
+  main { overflow-y: auto; padding: 18px 28px 40px; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Seitenleiste */
+  .nav { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; text-decoration: none; color: var(--fg); font-weight: 600; }
+  .nav:hover { background: var(--panel2); }
+  .nav.on { background: color-mix(in srgb, var(--c, var(--accent)) 16%, transparent); color: var(--c, var(--accent)); }
+  .nav .ic { width: 22px; text-align: center; }
+  .nav .cnt { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .nav .cnt.alert { color: var(--crit); font-weight: 700; }
+  .sec { margin: 16px 10px 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; text-decoration: none; color: var(--fg); font-weight: 600; font-size: 14px; background: var(--panel2); }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+
+  /* Inhalt */
+  .crumb { color: var(--accent); font-size: 13px; }
+  h1 { margin: 0; font-size: 28px; }
+  h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  h2 .grow, .grow { flex: 1; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .card.mark { border-left: 4px solid var(--c, var(--hi)); }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+  .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: color-mix(in srgb, var(--hi) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--hi) 55%, var(--line)); border-radius: 10px; padding: 9px 14px; }
+  .banner .grow { min-width: 200px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; background: var(--panel2); border-radius: 9px; }
+  .row.cur { outline: 2px solid var(--accent); }
+  .row.done { opacity: .55; }
+  .list { display: flex; flex-direction: column; gap: 6px; }
+  .tm { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .f { display: inline-block; min-width: 30px; text-align: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 2px 6px;
+       background: color-mix(in srgb, var(--c, var(--muted)) 20%, transparent); color: var(--c, var(--muted)); }
+  .kl { font-weight: 700; }
+  .topic { color: var(--muted); }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .badge.crit { color: var(--crit); } .badge.warn { color: var(--warn); } .badge.good { color: var(--good); } .badge.mut { color: var(--muted); }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 2px; }
+
+  /* Jetzt-Karte */
+  .now { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
+  .now .big { font-size: 22px; font-weight: 700; }
+  .now .rest { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
+  .now .rest.warn { color: var(--warn); }
+  .prog { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--panel2); overflow: hidden; }
+  .prog i { display: block; height: 100%; background: var(--c, var(--accent)); }
+
+  /* Tabellen */
+  .tbl { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+  .tbl th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 8px; }
+  .tbl td { background: var(--panel2); padding: 7px 8px; vertical-align: middle; }
+  .tbl td:first-child { border-radius: 8px 0 0 8px; } .tbl td:last-child { border-radius: 0 8px 8px 0; }
+  .tbl tr.cur td { background: color-mix(in srgb, var(--accent) 16%, var(--panel2)); }
+  .tbl tr.done td { opacity: .6; }
+  .scroll { overflow-x: auto; }
+  .week { border-collapse: separate; border-spacing: 4px; width: 100%; min-width: 640px; }
+  .week th { font-size: 13px; color: var(--muted); }
+  .week td { padding: 0; }
+  .week .slot { width: 100%; min-height: 48px; text-align: left; display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px; }
+  .week .slot.has { background: color-mix(in srgb, var(--c) 16%, var(--panel2)); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
+  .week .slot small { color: var(--muted); }
+  .week .pz td { text-align: center; font-size: 12px; color: var(--muted); }
+  .week .pz label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+  .week .tcell { white-space: nowrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bellrow { display: grid; grid-template-columns: 110px 90px 100px 100px auto; gap: 6px; align-items: center; }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px 18px; }
+  .settings label { display: flex; align-items: center; gap: 8px; }
+  .settings input[type=number] { width: 64px; text-align: right; }
+
+  /* To-dos */
+  .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; padding: 8px 10px; background: var(--panel2); border-radius: 9px; border-left: 4px solid transparent; }
+  .todo.wichtig { border-left-color: var(--crit); }
+  .todo input[type=checkbox] { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--accent); }
+  .todo .t { font-weight: 600; overflow-wrap: anywhere; }
+  .todo .m { grid-column: 2; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .todo.erl .t { text-decoration: line-through; opacity: .6; }
+  .todo .act { grid-row: 1 / 3; grid-column: 3; display: flex; gap: 2px; }
+  .todo .act button { padding: 3px 7px; }
+  .colhead { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .grp { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 6px; }
+  .grp.crit { color: var(--crit); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: none; }
+  .seg button.on { background: var(--accent); color: var(--on-accent); }
+
+  .pin { padding: 10px 12px; background: var(--panel2); border-radius: 9px; display: flex; flex-direction: column; gap: 4px; }
+  .pin .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pin .m { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 18px; width: min(460px, calc(100% - 24px)); }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog form { display: flex; flex-direction: column; gap: 10px; }
+  dialog h3 { margin: 0 0 4px; }
+  .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .fld.chk { flex-direction: row; align-items: center; color: var(--fg); font-size: 15px; }
+  .fld input, .fld select, .fld textarea { color: var(--fg); font-size: 15px; }
+  .dlg-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  .dlg-btns .danger { margin-right: auto; }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    aside { position: fixed; top: 0; bottom: 0; left: 0; width: 280px; z-index: 50; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 30px rgba(0,0,0,.4); }
+    body.menu aside { transform: none; }
+    #menuBtn { display: inline-block; }
+    main { padding: 14px 16px 40px; }
+    .two { grid-template-columns: minmax(0, 1fr); }
+    .bellrow { grid-template-columns: 1fr 1fr; }
+    .brand span:last-child { display: none; }
+    .now .rest { font-size: 30px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media print { aside, .top, button { display: none !important; } .shell { display: block; } main { overflow: visible; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <button id="menuBtn" aria-label="Menü öffnen">☰</button>
+  <a class="brand" href="#/start"><span class="logo">⚙</span><span>KFZ-Arbeitsplatz</span></a>
+  <input id="q" type="search" placeholder="Suchen … (z. B. Ohmsches Gesetz, 3A, Prüfung)" aria-label="Suchen">
+  <span class="clock" id="clock">--:--</span>
+  <button id="timerBtn" title="Unterrichtstimer öffnen – Stundenende wird aus der Klingel übernommen">⏱ Timer</button>
+  <button id="syncBtn" title="Mit der Team-Datei abgleichen" hidden>⇅</button>
+  <a class="me" id="meBtn" href="#/team">👤 Name eintragen</a>
+</header>
+<div class="shell">
+  <aside id="side" aria-label="Navigation"></aside>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script src="erinnerung.js"></script>
+<script>
+(() => {
+  'use strict';
+  const E = window.Erinnerung;
+  const $ = id => document.getElementById(id);
+  const COLS = ['stoff', 'aufgaben', 'notizen', 'termine', 'personen', 'log'];
+  const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WTL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const FORMAT = 'kfz-arbeitsplatz-team';
+  const { pad, norm, uhr } = E;
+
+  // ---------- Daten ----------
+  function laden() {
+    const s = E.laden();
+    s.ich = Object.assign({ name: '', klasse: '' }, s.ich || {});
+    s.team = s.team && typeof s.team === 'object' ? s.team : {};
+    COLS.forEach(c => { if (!Array.isArray(s.team[c])) s.team[c] = []; });
+    s.ui = Object.assign({ fk: {}, todoFilter: 'offen', erinnert: [] }, s.ui || {});
+    return s;
+  }
+  let S = laden();
+  let syncTimer = null;
+  function save(ohneSync) {
+    try { localStorage.setItem(E.KEY, JSON.stringify(S)); } catch (e) { E.toast({ art: 'ende', titel: 'Speichern fehlgeschlagen', text: 'Der Browser erlaubt keinen Speicher (privates Fenster?).' }); }
+    if (!ohneSync && fh) { clearTimeout(syncTimer); syncTimer = setTimeout(() => abgleichen(false), 4000); }
+  }
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const alive = c => S.team[c].filter(x => !x.del);
+  function put(c, item, still) {
+    item.id = item.id || uid(); item.upd = Date.now(); item.von = S.ich.name || '';
+    if (!item.autor) item.autor = S.ich.name || '';
+    const i = S.team[c].findIndex(x => x.id === item.id);
+    if (i >= 0) S.team[c][i] = item; else S.team[c].push(item);
+    save(); if (!still) render();
+    return item;
+  }
+  function drop(c, id) {
+    const i = S.team[c].findIndex(x => x.id === id); if (i < 0) return;
+    const x = S.team[c][i];
+    S.team[c][i] = { id: x.id, del: true, upd: Date.now(), von: S.ich.name || '', privat: x.privat || undefined };
+    save(); render();
+  }
+  const valid = x => x && typeof x === 'object' && typeof x.id === 'string' && x.id.length < 60 && Number.isFinite(x.upd);
+  function merge(other) {
+    let n = 0;
+    COLS.forEach(c => {
+      (other && Array.isArray(other[c]) ? other[c] : []).forEach(x => {
+        if (!valid(x) || x.privat) return;
+        const i = S.team[c].findIndex(y => y.id === x.id);
+        if (i < 0) { S.team[c].push(x); n++; }
+        else if (x.upd > (S.team[c][i].upd || 0)) { S.team[c][i] = x; n++; }
+      });
+    });
+    return n;
+  }
+  // Was an Kolleginnen und Kollegen geht: alles außer privaten To-dos
+  const teamTeil = () => { const t = {}; COLS.forEach(c => { t[c] = S.team[c].filter(x => !x.privat); }); return t; };
+  const paket = () => ({ format: FORMAT, version: 1, stand: new Date().toISOString(), von: S.ich.name || '', team: teamTeil() });
+
+  // ---------- Hilfen ----------
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag); let val;
+    if (props) for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'value') val = v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k in el && typeof v !== 'string') el[k] = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    kids.flat(Infinity).forEach(c => { if (c != null && c !== false) el.append(c instanceof Node ? c : String(c)); });
+    if (val !== undefined) el.value = val;
+    return el;
+  }
+  const fachC = k => E.FAECHER.some(f => f.k === k) ? `--c:var(--${k})` : '';
+  const F = k => h('span', { class: 'f', style: fachC(k), title: E.fach(k).name }, k || '–');
+  const iso = d => E.datum(d);
+  const heute = () => iso(new Date());
+  const addTage = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const parseISO = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3]) : null; };
+  const tageBis = s => { const d = parseISO(s); if (!d) return null; const t = parseISO(heute()); return Math.round((d - t) / 864e5); };
+  function tagLabel(s) {
+    const n = tageBis(s), d = parseISO(s);
+    if (n === 0) return 'heute'; if (n === 1) return 'morgen'; if (n === -1) return 'gestern';
+    return d ? `${WT[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.` : '';
+  }
+  const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); const hh = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (hh ? hh + ':' + pad(m) : m) + ':' + pad(s % 60); };
+  const klassen = () => {
+    const set = new Map();
+    S.plan.forEach(e => e.klasse && set.set(norm(e.klasse), e.klasse.trim()));
+    alive('stoff').forEach(x => x.klasse && set.set(norm(x.klasse), x.klasse.trim()));
+    return [...set.values()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+  };
+  const stoffVon = (f, k) => alive('stoff').filter(x => x.fach === f && norm(x.klasse) === norm(k)).sort((a, b) => (a.pos || 0) - (b.pos || 0) || a.upd - b.upd);
+  const aktuellesThema = (f, k) => stoffVon(f, k).find(x => x.status !== 'fertig') || null;
+  const gebraucht = id => alive('log').filter(l => l.stoffId === id && (l.erg === 'geschafft' || l.erg === 'nicht ganz')).reduce((a, l) => a + (+l.std || 1), 0);
+
+  // Formular-Dialog: liefert Werte, 'del' oder null
+  function formular(titel, felder, werte = {}, opt = {}) {
+    return new Promise(res => {
+      const dlg = $('dlg'), f = $('dlgForm'), inputs = {};
+      f.textContent = '';
+      f.append(h('h3', null, titel));
+      if (opt.hinweis) f.append(h('p', { class: 'note' }, opt.hinweis));
+      felder.forEach(fd => {
+        let el;
+        if (fd.type === 'select') el = h('select', null, fd.options.map(([v, l]) => h('option', { value: v }, l)));
+        else if (fd.type === 'textarea') el = h('textarea', { rows: 4 });
+        else el = h('input', { type: fd.type || 'text', step: fd.step, min: fd.min, max: fd.max, placeholder: fd.ph || '', maxlength: fd.max ? null : '300' });
+        if (fd.type === 'checkbox') el.checked = !!(werte[fd.k] ?? fd.def);
+        else el.value = werte[fd.k] ?? fd.def ?? '';
+        if (fd.req) el.required = true;
+        if (fd.list) { const id = 'dl' + uid(); el.setAttribute('list', id); f.append(h('datalist', { id }, fd.list.map(v => h('option', { value: v })))); }
+        inputs[fd.k] = el;
+        f.append(h('label', { class: 'fld' + (fd.type === 'checkbox' ? ' chk' : '') }, fd.type === 'checkbox' ? [el, h('span', null, fd.label)] : [h('span', null, fd.label), el]));
+      });
+      f.append(h('div', { class: 'dlg-btns' },
+        opt.loeschen ? h('button', { value: 'del', class: 'danger', formnovalidate: true }, 'Löschen') : null,
+        h('button', { value: 'cancel', formnovalidate: true }, 'Abbrechen'),
+        h('button', { value: 'ok', class: 'primary' }, opt.ok || 'Speichern')));
+      dlg.onclose = () => {
+        if (dlg.returnValue === 'del') return res('del');
+        if (dlg.returnValue !== 'ok') return res(null);
+        const out = {};
+        for (const [k, el] of Object.entries(inputs)) out[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+        res(out);
+      };
+      dlg.returnValue = ''; dlg.showModal();
+      const first = f.querySelector('input:not([type=checkbox]),select,textarea'); if (first) first.focus();
+    });
+  }
+  const fachOptionen = leer => [...(leer ? [['', leer]] : []), ...E.FAECHER.map(f => [f.k, `${f.icon} ${f.name}`])];
+  const personenNamen = () => [...new Set([S.ich.name, ...alive('personen').map(p => p.name)].filter(Boolean))];
+
+  // ---------- Timer ----------
+  function timerOeffnen(ende, titel) {
+    if (window.desk && window.desk.timer) { window.desk.timer(ende || '', titel || ''); return; }
+    const q = ende ? `?ende=${encodeURIComponent(ende)}&titel=${encodeURIComponent(titel || '')}` : '';
+    window.open('index.html' + q, 'unterrichtstimer');
+  }
+  $('timerBtn').onclick = () => { const k = E.klingel(Date.now(), S); timerOeffnen(k && k.bis, k && k.titel); };
+
+  // ---------- Seitenleiste ----------
+  const route = () => (location.hash.replace(/^#\/?/, '') || 'start').split('/').map(decodeURIComponent);
+  function nav(href, ic, txt, cnt, style, alert) {
+    const r = '#/' + route().join('/');
+    return h('a', { class: 'nav' + (r === href ? ' on' : ''), href, style }, h('span', { class: 'ic' }, ic), h('span', null, txt),
+      cnt ? h('span', { class: 'cnt' + (alert ? ' alert' : '') }, cnt) : null);
+  }
+  function renderSide() {
+    const t = todoGruppen(), ueber = t.offen.filter(x => zeitGruppe(x) === 'überfällig').length;
+    const termine = alive('termine').filter(x => { const n = tageBis(x.datum); return n != null && n >= 0 && n <= 14; }).length;
+    const side = $('side'); side.textContent = '';
+    side.append(...[
+      nav('#/start', '🏠', 'Mein Arbeitsplatz'),
+      nav('#/todo', '✅', 'To-do-Liste', ueber ? ueber + ' überfällig' : t.offen.length || '', null, ueber > 0),
+      h('div', { class: 'sec' }, 'Fächer'),
+      E.FAECHER.map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      h('div', { class: 'sec' }, 'Organisation'),
+      nav('#/plan', '🗓', 'Stundenplan & Klingel'),
+      nav('#/termine', '📌', 'Termine', termine || ''),
+      nav('#/pinnwand', '💬', 'Pinnwand', alive('notizen').length || ''),
+      nav('#/team', '👥', 'Team & Austausch'),
+      h('div', { class: 'sec' }, 'Meine Klassen'),
+      h('div', { class: 'chips' }, klassen().length ? klassen().map(k => h('a', { class: 'chip' + (route()[0] === 'klasse' && norm(route()[1]) === norm(k) ? ' on' : ''), href: '#/klasse/' + encodeURIComponent(k) }, k))
+        : h('span', { class: 'note' }, 'Kommen aus dem Stundenplan.')),
+    ].flat());
+    $('meBtn').textContent = '👤 ' + (S.ich.name || 'Name eintragen');
+    $('syncBtn').hidden = !fh;
+  }
+
+  // ---------- Startseite ----------
+  function jetztInhalt() {
+    const now = Date.now(), j = E.jetzt(now, S), box = [];
+    const x = j.slot;
+    if (x && x.typ === 'stunde') {
+      const b = E.blockEnde(j.slots, j.k), e = x.eintrag, rest = b.ende - now;
+      const startBlock = (() => { let k = j.k; while (k > 0 && j.slots[k - 1].typ === 'stunde' && E.gleich(j.slots[k - 1].eintrag, e) && e) k--; return j.slots[k].start; })();
+      box.push(h('div', { class: 'now', style: e ? fachC(e.fach) : '' },
+        h('div', null, h('div', { class: 'tm' }, `${x.nr}. Stunde · ${uhr(startBlock)}–${b.bis}`),
+          h('div', { class: 'big' }, e ? [F(e.fach), ' ', E.fach(e.fach).name, ' · ', e.klasse || '–'] : 'Freistunde'),
+          e ? h('div', { class: 'topic' }, (e.raum ? `Raum ${e.raum} · ` : '') + 'Thema: ' + ((aktuellesThema(e.fach, e.klasse) || {}).titel || '– noch keins eingetragen')) : null),
+        h('div', { class: 'rest' + (rest < S.einst.vorEnde * 6e4 ? ' warn' : '') }, mmss(rest)),
+        h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (now - startBlock) / (b.ende - startBlock) * 100)}%` }))));
+      box.push(h('div', { class: 'btns', style: 'margin-left:0' }, h('button', { class: 'primary', onclick: () => timerOeffnen(b.bis, e ? `${e.fach} ${e.klasse || ''}` : '') }, `⏱ Timer bis ${b.bis}`)));
+    } else if (x && x.typ === 'pause') {
+      const nx = j.slots[j.k + 1];
+      box.push(h('div', { class: 'now' },
+        h('div', null, h('div', { class: 'tm' }, `${x.von}–${x.bis}`), h('div', { class: 'big' }, '☕ ' + (x.name || 'Pause'), x.aufsicht ? h('span', { class: 'badge warn', style: 'margin-left:8px' }, 'Aufsicht') : null),
+          nx && nx.eintrag ? h('div', { class: 'topic' }, 'Danach: ' + E.label(nx.eintrag)) : null),
+        h('div', { class: 'rest' }, mmss(x.ende - now)),
+        h('div', { class: 'prog' }, h('i', { style: `width:${(now - x.start) / (x.ende - x.start) * 100}%` }))));
+    } else {
+      const n = E.naechsteStunde(now, S);
+      box.push(h('div', null, h('div', { class: 'big', style: 'font-size:20px;font-weight:700' }, 'Gerade kein Unterricht'),
+        h('div', { class: 'topic' }, n ? `Nächste Stunde: ${tagLabel(iso(n.slot.start))} ${n.slot.von} · ${E.label(n.slot.eintrag)}` : 'Trag deinen Stundenplan ein, dann erscheint hier die laufende Stunde.')));
+    }
+    const ev = E.ereignisse(now, S).find(e => e.t > now);
+    const still = S.einst.stillAm === heute();
+    box.push(h('div', { class: 'row', style: 'background:none;padding:0' },
+      h('span', { class: 'note' }, !S.einst.aktiv ? '🔕 Erinnerungen ausgeschaltet' : still ? '🔕 Heute stumm' : ev ? `🔔 Nächste Erinnerung ${uhr(ev.t)}: ${ev.titel}` : '🔔 Heute keine weiteren Erinnerungen'),
+      h('div', { class: 'btns' },
+        h('button', { class: 'small', onclick: () => E.testen() }, 'Testen'),
+        h('button', { class: 'small', onclick: () => { S.einst.stillAm = still ? '' : heute(); save(true); render(); } }, still ? 'Wieder einschalten' : 'Heute stumm'))));
+    return box;
+  }
+
+  // Stunden, deren Ergebnis noch fehlt (heute und die letzten 7 Tage, ab dem ersten Planeintrag)
+  function offeneRueckmeldungen() {
+    const now = Date.now(), out = [], seit = S.ui.seit || heute();
+    for (let i = 7; i >= 0; i--) {
+      const d = addTage(new Date(), -i), key = iso(d);
+      if (key < seit) continue;
+      const gruppen = new Map();
+      E.tag(d, S).forEach(x => {
+        if (!x.eintrag || x.ende - 5 * 6e4 > now) return;
+        const g = `${x.eintrag.fach}|${norm(x.eintrag.klasse)}`;
+        if (!gruppen.has(g)) gruppen.set(g, { tag: key, e: x.eintrag, zeiten: [], std: 0 });
+        const gr = gruppen.get(g);
+        if (!gr.zeiten.length || gr.letzt !== x.i - 1) gr.zeiten.push(x.von);
+        gr.letzt = x.i; gr.std++;
+      });
+      gruppen.forEach(g => {
+        const key2 = `${g.tag}|${g.e.fach}|${norm(g.e.klasse)}`;
+        if (!alive('log').some(l => l.key === key2)) out.push(Object.assign(g, { key: key2 }));
+      });
+    }
+    return out.reverse();
+  }
+  function rueckmelden(g, erg) {
+    const th = aktuellesThema(g.e.fach, g.e.klasse);
+    if (th && erg === 'geschafft') put('stoff', Object.assign({}, th, { status: 'fertig' }), true);
+    else if (th && erg === 'nicht ganz' && th.status !== 'laeuft') put('stoff', Object.assign({}, th, { status: 'laeuft' }), true);
+    put('log', { key: g.key, datum: g.tag, fach: g.e.fach, klasse: g.e.klasse, erg, std: g.std, stoffId: th ? th.id : null, thema: th ? th.titel : '' });
+  }
+
+  function viewStart() {
+    const w = [h('div', { class: 'crumb' }, '⌂ Übersicht'), h('h1', null, 'Mein Arbeitsplatz')];
+    if ('Notification' in window && Notification.permission === 'default' && !S.ui.notifNein) {
+      w.push(h('div', { class: 'banner' }, '🔔', h('span', { class: 'grow' }, h('b', null, 'Mitteilungen'), ' auch dann, wenn das Fenster im Hintergrund ist?'),
+        h('button', { class: 'primary small', onclick: () => Notification.requestPermission().then(render) }, 'Einschalten'),
+        h('button', { class: 'small', onclick: () => { S.ui.notifNein = true; save(true); render(); } }, 'Nicht jetzt')));
+    }
+    if (!S.ich.name || !S.plan.length) {
+      w.push(h('div', { class: 'banner' }, '👋', h('span', { class: 'grow' }, 'Zum Start: ', !S.ich.name ? h('a', { href: '#/team' }, 'Namen eintragen') : null,
+        !S.ich.name && !S.plan.length ? ' und ' : null, !S.plan.length ? h('a', { href: '#/plan' }, 'Stundenplan und Klingelzeiten eintragen') : null,
+        '. Danach kommen die Erinnerungen automatisch.')));
+    }
+    w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, '⏰ Jetzt'), h('div', { id: 'jetzt', class: 'list' }, jetztInhalt())));
+
+    const offen = offeneRueckmeldungen();
+    if (offen.length) {
+      w.push(h('section', { class: 'card mark' }, h('h2', null, '🔁 Wie liefen deine Stunden?'),
+        h('p', { class: 'note' }, 'Ein Klick genügt – das Thema rückt in der Stoffverteilung weiter.'),
+        h('div', { class: 'list' }, offen.slice(0, 10).map(g => {
+          const th = aktuellesThema(g.e.fach, g.e.klasse);
+          return h('div', { class: 'row' }, h('span', { class: 'tm' }, `${tagLabel(g.tag)} · ${g.zeiten.join(' + ')}`), F(g.e.fach), h('span', { class: 'kl' }, g.e.klasse || '–'),
+            h('span', { class: 'topic grow' }, th ? th.titel : h('a', { href: '#/fach/' + g.e.fach }, '+ Thema eintragen')),
+            h('div', { class: 'btns' },
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'geschafft'), title: 'Thema abgeschlossen – nächstes Thema wird aktuell' }, '✓ geschafft'),
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'nicht ganz'), title: 'Thema läuft in der nächsten Stunde weiter' }, '↪ nicht ganz'),
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'fiel aus') }, '⏭ fiel aus'),
+              h('button', { class: 'small ghost', title: 'Ignorieren', 'aria-label': 'Ignorieren', onclick: () => rueckmelden(g, 'ignoriert') }, '✕')));
+        }))));
+    }
+
+    w.push(h('div', { class: 'two' }, cardTodoKurz(), cardHeute()));
+    w.push(h('div', { class: 'two' }, cardNaechste(), cardTermine(21)));
+    w.push(cardPinnwand(4));
+    return w;
+  }
+
+  function cardHeute() {
+    const now = Date.now(), d = new Date(), sl = E.tag(d, S).filter(x => x.eintrag || x.aufsicht);
+    return h('section', { class: 'card' }, h('h2', null, `📅 Heute (${WTL[d.getDay()]})`),
+      sl.length ? h('div', { class: 'list' }, sl.map(x => h('div', { class: 'row' + (x.start <= now && now < x.ende ? ' cur' : x.ende <= now ? ' done' : '') },
+        h('span', { class: 'tm' }, `${x.von}–${x.bis}`),
+        x.eintrag ? [F(x.eintrag.fach), h('span', { class: 'kl' }, x.eintrag.klasse || '–'), x.eintrag.raum ? h('span', { class: 'note' }, 'Raum ' + x.eintrag.raum) : null,
+          h('span', { class: 'topic' }, (aktuellesThema(x.eintrag.fach, x.eintrag.klasse) || {}).titel || '')]
+          : h('span', null, `👀 Aufsicht · ${x.name || 'Pause'}`))))
+        : h('div', { class: 'empty' }, 'Heute kein eigener Unterricht eingetragen.'));
+  }
+  function cardNaechste() {
+    const tage = [];
+    for (let i = 1; i < 15 && tage.length < 2; i++) {
+      const d = addTage(new Date(), i), sl = E.tag(d, S).filter(x => x.eintrag);
+      if (!sl.length) continue;
+      const g = [];
+      sl.forEach(x => { const l = g[g.length - 1]; if (l && E.gleich(l.e, x.eintrag) && l.last === x.i - 1) { l.bis = x.bis; l.last = x.i; } else g.push({ e: x.eintrag, von: x.von, bis: x.bis, last: x.i }); });
+      tage.push({ d, g });
+    }
+    return h('section', { class: 'card' }, h('h2', null, '🗓 Meine nächsten Stunden', h('span', { class: 'grow' }), h('a', { href: '#/plan', style: 'font-size:13px' }, 'Woche ›')),
+      tage.length ? tage.map(t => [h('div', { class: 'grp' }, `${WTL[t.d.getDay()]} ${pad(t.d.getDate())}.${pad(t.d.getMonth() + 1)}.`),
+        h('div', { class: 'list' }, t.g.map(x => h('div', { class: 'row' }, h('span', { class: 'tm' }, `${x.von}–${x.bis}`), F(x.e.fach), h('span', { class: 'kl' }, x.e.klasse || '–'),
+          h('span', { class: 'topic' }, (aktuellesThema(x.e.fach, x.e.klasse) || {}).titel || '– kein Thema'))))])
+        : h('div', { class: 'empty' }, 'Keine Stunden im Plan.'));
+  }
+
+  // ---------- To-do-Liste: wichtig / nicht wichtig, jeweils zeitlich sortiert ----------
+  const faelligMs = x => { const d = parseISO(x.faellig); if (!d) return Infinity; const m = E.hm(x.zeit); d.setMinutes(m == null ? 23 * 60 + 59 : m); return d.getTime(); };
+  const meins = x => x.privat || !x.fuer || x.fuer === 'alle' || !S.ich.name || x.fuer === S.ich.name;
+  function todoGruppen() {
+    const all = alive('aufgaben').filter(x => typeof x.titel === 'string');
+    const sort = (a, b) => faelligMs(a) - faelligMs(b) || (a.upd - b.upd);
+    const offen = all.filter(x => !x.erledigt && meins(x)).sort(sort);
+    return { all, offen, erledigt: all.filter(x => x.erledigt).sort((a, b) => (b.erledigtAm || 0) - (a.erledigtAm || 0)) };
+  }
+  function zeitGruppe(x) {
+    const n = tageBis(x.faellig);
+    if (n == null) return 'ohne Termin';
+    if (n < 0 || (n === 0 && faelligMs(x) < Date.now())) return 'überfällig';
+    if (n === 0) return 'heute'; if (n === 1) return 'morgen'; if (n <= 7) return 'diese Woche'; return 'später';
+  }
+  function todoZeile(x) {
+    const n = tageBis(x.faellig), ueber = zeitGruppe(x) === 'überfällig';
+    return h('div', { class: 'todo' + (x.wichtig ? ' wichtig' : '') + (x.erledigt ? ' erl' : '') },
+      h('input', { type: 'checkbox', checked: !!x.erledigt, 'aria-label': 'Erledigt: ' + x.titel,
+        onchange: ev => put('aufgaben', Object.assign({}, x, { erledigt: ev.target.checked, erledigtAm: ev.target.checked ? Date.now() : null })) }),
+      h('span', { class: 't' }, x.titel),
+      h('span', { class: 'act' },
+        h('button', { class: 'ghost small', title: x.wichtig ? 'Als nicht wichtig markieren' : 'Als wichtig markieren', 'aria-label': 'Wichtigkeit umschalten',
+          onclick: () => put('aufgaben', Object.assign({}, x, { wichtig: !x.wichtig })) }, x.wichtig ? '★' : '☆'),
+        h('button', { class: 'ghost small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => todoDialog(x) }, '✎')),
+      h('span', { class: 'm' },
+        x.faellig ? h('span', { class: 'badge ' + (ueber ? 'crit' : n <= 1 ? 'warn' : 'mut') }, (ueber ? 'überfällig · ' : '') + tagLabel(x.faellig) + (x.zeit ? ' ' + x.zeit : '')) : null,
+        x.fach ? F(x.fach) : null, x.klasse ? h('span', null, x.klasse) : null,
+        x.privat ? h('span', null, '🔒 privat') : x.fuer && x.fuer !== 'alle' ? h('span', null, '→ ' + x.fuer) : h('span', null, '👥 Team'),
+        x.notiz ? h('span', { title: x.notiz }, '📝') : null));
+  }
+  function todoListe(liste) {
+    if (!liste.length) return h('div', { class: 'empty' }, 'Nichts offen.');
+    const out = []; let g = null;
+    liste.forEach(x => { const z = zeitGruppe(x); if (z !== g) { g = z; out.push(h('div', { class: 'grp' + (z === 'überfällig' ? ' crit' : '') }, z)); } out.push(todoZeile(x)); });
+    return h('div', { class: 'list' }, out);
+  }
+  async function todoDialog(x, vorgabe) {
+    x = x || null;
+    const v = await formular(x ? 'To-do bearbeiten' : 'Neues To-do', [
+      { k: 'titel', label: 'Was ist zu tun?', req: true, ph: 'z. B. Schularbeit 3A korrigieren' },
+      { k: 'wichtig', label: '★ Wichtig', type: 'checkbox' },
+      { k: 'faellig', label: 'Fällig am', type: 'date' },
+      { k: 'zeit', label: 'Uhrzeit (optional, dann kommt eine Erinnerung)', type: 'time' },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– kein Fach –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+      { k: 'privat', label: '🔒 Nur für mich (wird nicht ans Team weitergegeben)', type: 'checkbox', def: true },
+      { k: 'fuer', label: 'Für wen? (nur bei Team-Aufgaben)', type: 'select', options: [['alle', 'Alle im Team'], ...personenNamen().map(n => [n, n])] },
+      { k: 'notiz', label: 'Notiz', type: 'textarea' },
+    ], x ? Object.assign({}, x, { privat: !!x.privat }) : vorgabe || {}, { loeschen: !!x });
+    if (v === 'del') { drop('aufgaben', x.id); return; }
+    if (!v) return;
+    put('aufgaben', Object.assign({}, x || {}, v, { privat: v.privat || undefined, fuer: v.privat ? '' : v.fuer, erinnert: x && x.faellig === v.faellig && x.zeit === v.zeit ? x.erinnert : undefined }));
+  }
+  function cardTodoKurz() {
+    const t = todoGruppen(), w = t.offen.filter(x => x.wichtig), n = t.offen.filter(x => !x.wichtig);
+    return h('section', { class: 'card' }, h('h2', null, '✅ To-do', h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => todoDialog() }, '+ To-do'), h('a', { href: '#/todo', style: 'font-size:13px' }, 'alle ›')),
+      h('div', { class: 'colhead', style: 'color:var(--crit)' }, '★ Wichtig'), todoListe(w.slice(0, 6)),
+      h('div', { class: 'colhead', style: 'color:var(--muted)' }, '☆ Nicht wichtig'), todoListe(n.slice(0, 4)),
+      t.offen.length > 10 ? h('a', { href: '#/todo' }, `… ${t.offen.length - 10} weitere`) : null);
+  }
+  function viewTodo() {
+    const t = todoGruppen(), f = S.ui.todoFilter;
+    const setF = v => { S.ui.todoFilter = v; save(true); render(); };
+    const w = [h('div', { class: 'crumb' }, '⌂ Übersicht › To-do'), h('h1', null, 'To-do-Liste'),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'primary', onclick: () => todoDialog() }, '+ Neues To-do'),
+        h('div', { class: 'seg' }, [['offen', 'Offen'], ['erledigt', 'Erledigt'], ['team', 'Ganzes Team']].map(([k, l]) => h('button', { class: f === k ? 'on' : '', onclick: () => setF(k) }, l))),
+        h('span', { class: 'note' }, 'Sortiert nach Fälligkeit. Mit Uhrzeit kommt zum Termin eine Erinnerung.'))];
+    if (f === 'erledigt') {
+      w.push(h('section', { class: 'card' }, h('h2', null, 'Erledigt', h('span', { class: 'grow' }),
+        t.erledigt.length ? h('button', { class: 'small', onclick: () => { t.erledigt.filter(x => x.privat || x.autor === S.ich.name).forEach(x => drop('aufgaben', x.id)); } }, 'Eigene erledigte löschen') : null),
+        t.erledigt.length ? h('div', { class: 'list' }, t.erledigt.map(todoZeile)) : h('div', { class: 'empty' }, 'Noch nichts erledigt.')));
+      return w;
+    }
+    const basis = f === 'team' ? t.all.filter(x => !x.erledigt && !x.privat).sort((a, b) => faelligMs(a) - faelligMs(b)) : t.offen;
+    w.push(h('div', { class: 'two' },
+      h('section', { class: 'card mark', style: '--c:var(--crit)' }, h('h2', null, '★ Wichtig', h('span', { class: 'note' }, basis.filter(x => x.wichtig).length)), todoListe(basis.filter(x => x.wichtig))),
+      h('section', { class: 'card mark', style: '--c:var(--muted)' }, h('h2', null, '☆ Nicht wichtig', h('span', { class: 'note' }, basis.filter(x => !x.wichtig).length)), todoListe(basis.filter(x => !x.wichtig)))));
+    return w;
+  }
+  // Erinnerung für To-dos mit Uhrzeit
+  function todoErinnerungen() {
+    const now = Date.now();
+    alive('aufgaben').forEach(x => {
+      if (x.erledigt || !x.zeit || !meins(x) || S.ui.erinnert.includes(x.id + x.faellig + x.zeit)) return;
+      const t = faelligMs(x);
+      if (t > now || now - t > 12 * 3600e3) return;
+      S.ui.erinnert.push(x.id + x.faellig + x.zeit); S.ui.erinnert = S.ui.erinnert.slice(-200); save(true);
+      E.ausloesen({ id: 'todo|' + x.id, art: x.wichtig ? 'aufsicht' : 'pauseende', titel: (x.wichtig ? '★ ' : '') + 'To-do fällig', text: x.titel });
+    });
+  }
+
+  // ---------- Termine & Pinnwand ----------
+  async function terminDialog(x, vorgabe) {
+    const v = await formular(x ? 'Termin bearbeiten' : 'Neuer Termin', [
+      { k: 'datum', label: 'Datum', type: 'date', req: true, def: heute() },
+      { k: 'titel', label: 'Was?', req: true, ph: 'z. B. Schularbeit Bremsanlage' },
+      { k: 'art', label: 'Art', type: 'select', options: [['Prüfung', '📝 Prüfung / Schularbeit'], ['Abgabe', '📤 Abgabe'], ['Konferenz', '👥 Konferenz / Besprechung'], ['Exkursion', '🚌 Exkursion / Betrieb'], ['Sonstiges', '📌 Sonstiges']] },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– alle Fächer –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+    ], x || vorgabe || {}, { loeschen: !!x });
+    if (v === 'del') drop('termine', x.id); else if (v) put('termine', Object.assign({}, x || {}, v));
+  }
+  function terminZeile(x) {
+    const n = tageBis(x.datum);
+    return h('div', { class: 'row' + (n < 0 ? ' done' : '') }, h('span', { class: 'tm' }, tagLabel(x.datum)),
+      h('span', { class: 'badge ' + (x.art === 'Prüfung' ? 'crit' : 'mut') }, x.art || 'Termin'), x.fach ? F(x.fach) : null, x.klasse ? h('span', { class: 'kl' }, x.klasse) : null,
+      h('span', { class: 'grow' }, x.titel), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => terminDialog(x) }, '✎'));
+  }
+  const termineSortiert = filter => alive('termine').filter(x => parseISO(x.datum) && (!filter || filter(x))).sort((a, b) => a.datum.localeCompare(b.datum));
+  function cardTermine(tage, filter, vorgabe) {
+    const l = termineSortiert(x => { const n = tageBis(x.datum); return n >= 0 && n <= tage && (!filter || filter(x)); });
+    return h('section', { class: 'card' }, h('h2', null, '📌 Termine', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => terminDialog(null, vorgabe) }, '+ Termin')),
+      l.length ? h('div', { class: 'list' }, l.map(terminZeile)) : h('div', { class: 'empty' }, `Keine Termine in den nächsten ${tage} Tagen.`));
+  }
+  function viewTermine() {
+    const kommend = termineSortiert(x => tageBis(x.datum) >= 0), vorbei = termineSortiert(x => tageBis(x.datum) < 0).reverse().slice(0, 20);
+    return [h('div', { class: 'crumb' }, '⌂ Übersicht › Termine'), h('h1', null, 'Termine'),
+      h('section', { class: 'card' }, h('h2', null, 'Kommend', h('span', { class: 'grow' }), h('button', { class: 'primary small', onclick: () => terminDialog() }, '+ Termin')),
+        kommend.length ? h('div', { class: 'list' }, kommend.map(terminZeile)) : h('div', { class: 'empty' }, 'Keine Termine.')),
+      vorbei.length ? h('section', { class: 'card' }, h('h2', null, 'Vergangen'), h('div', { class: 'list' }, vorbei.map(terminZeile))) : null];
+  }
+  async function notizDialog(x, vorgabe) {
+    const v = await formular(x ? 'Notiz bearbeiten' : 'Neue Notiz an die Pinnwand', [
+      { k: 'text', label: 'Text', type: 'textarea', req: true },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– allgemein –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+    ], x || vorgabe || {}, { loeschen: !!x, hinweis: 'Für Absprachen im Team: z. B. „ET 3A: Ohmsches Gesetz fertig, FR kann mit Leistungsberechnung starten.“' });
+    if (v === 'del') drop('notizen', x.id); else if (v) put('notizen', Object.assign({}, x || {}, v));
+  }
+  function pinZeile(x) {
+    return h('div', { class: 'pin' }, h('div', { class: 'txt' }, x.text),
+      h('div', { class: 'm' }, h('span', null, (x.autor || '?') + ' · ' + new Date(x.upd).toLocaleDateString('de-DE')), x.fach ? F(x.fach) : null, x.klasse ? h('span', null, x.klasse) : null,
+        h('span', { class: 'grow' }), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => notizDialog(x) }, '✎')));
+  }
+  function cardPinnwand(max, filter, vorgabe) {
+    const l = alive('notizen').filter(x => typeof x.text === 'string' && (!filter || filter(x))).sort((a, b) => b.upd - a.upd);
+    return h('section', { class: 'card' }, h('h2', null, '💬 Pinnwand', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => notizDialog(null, vorgabe) }, '+ Notiz'),
+      max && l.length > max ? h('a', { href: '#/pinnwand', style: 'font-size:13px' }, 'alle ›') : null),
+      l.length ? h('div', { class: 'list' }, l.slice(0, max || 999).map(pinZeile)) : h('div', { class: 'empty' }, 'Noch keine Notizen.'));
+  }
+
+  // ---------- Fach ----------
+  function viewFach(k) {
+    const f = E.fach(k);
+    if (f.fremd) return [h('h1', null, 'Fach nicht gefunden')];
+    const ks = [...new Set([...S.plan.filter(e => e.fach === k).map(e => e.klasse.trim()), ...alive('stoff').filter(x => x.fach === k).map(x => x.klasse.trim())].filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+    let sel = S.ui.fk[k];
+    if (!sel || !ks.some(x => norm(x) === norm(sel))) sel = ks[0] || '';
+    const w = [h('div', { class: 'crumb' }, '⌂ Fächer › ' + f.name), h('h1', { style: fachC(k) }, f.icon + ' ' + f.name),
+      h('div', { class: 'chips', style: 'padding:0' }, ks.map(x => h('button', { class: 'chip' + (norm(x) === norm(sel) ? ' on' : ''), onclick: () => { S.ui.fk[k] = x; save(true); render(); } }, x)),
+        h('button', { class: 'chip', onclick: async () => { const v = await formular('Klasse hinzufügen', [{ k: 'klasse', label: 'Klasse', req: true, ph: 'z. B. 2B' }], {}, { ok: 'Weiter' }); if (v) { S.ui.fk[k] = v.klasse; save(true); stoffDialog(k, v.klasse); } } }, '+ Klasse'))];
+    if (sel) w.push(cardStoff(k, sel));
+    else w.push(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'Noch keine Klasse. Trag sie im Stundenplan ein oder füge sie oben hinzu.')));
+    const lehrer = alive('personen').filter(p => Array.isArray(p.faecher) && p.faecher.includes(k));
+    w.push(h('div', { class: 'two' }, cardPinnwand(5, x => x.fach === k, { fach: k, klasse: sel }), cardTermine(60, x => x.fach === k, { fach: k, klasse: sel })));
+    w.push(h('section', { class: 'card' }, h('h2', null, '👥 Wer unterrichtet ' + f.name + '?'),
+      lehrer.length ? h('div', { class: 'list' }, lehrer.map(p => h('div', { class: 'row' }, h('b', null, p.name), p.klassen ? h('span', { class: 'note' }, p.klassen) : null)))
+        : h('div', { class: 'empty' }, ['Noch niemand eingetragen. ', h('a', { href: '#/team' }, 'Team pflegen ›')])));
+    return w;
+  }
+  async function stoffDialog(fachK, klasse, x) {
+    const v = await formular(x ? 'Thema bearbeiten' : 'Neues Thema', [
+      { k: 'titel', label: 'Thema', req: true, ph: 'z. B. Zündanlage – Aufbau und Funktion' },
+      { k: 'std', label: 'Geplante Stunden', type: 'number', min: '0', step: '1', def: '2' },
+      { k: 'status', label: 'Stand', type: 'select', options: [['offen', 'offen'], ['laeuft', 'läuft'], ['fertig', 'fertig']] },
+      { k: 'hinweis', label: 'Hinweis (Material, Lernziel, Absprache)', type: 'textarea' },
+    ], x || {}, { loeschen: !!x });
+    if (v === 'del') return drop('stoff', x.id);
+    if (!v) return;
+    const pos = x ? x.pos : Math.max(0, ...stoffVon(fachK, klasse).map(s => s.pos || 0)) + 1;
+    put('stoff', Object.assign({}, x || {}, v, { fach: fachK, klasse: x ? x.klasse : klasse, pos, std: Math.max(0, parseInt(v.std, 10) || 0) }));
+  }
+  function cardStoff(k, kl) {
+    const l = stoffVon(k, kl), cur = l.find(x => x.status !== 'fertig');
+    const fertig = l.filter(x => x.status === 'fertig').length, stdPlan = l.reduce((a, x) => a + (+x.std || 0), 0), stdIst = l.reduce((a, x) => a + gebraucht(x.id), 0);
+    const tausch = (a, b) => { const pa = a.pos || 0, pb = b.pos || 0; put('stoff', Object.assign({}, a, { pos: pb === pa ? pb + 1 : pb }), true); put('stoff', Object.assign({}, b, { pos: pa })); };
+    const andere = [...new Set(alive('stoff').filter(x => x.fach === k && norm(x.klasse) !== norm(kl)).map(x => x.klasse.trim()))];
+    const stLabel = { offen: ['offen', 'mut'], laeuft: ['läuft', 'warn'], fertig: ['fertig', 'good'] };
+    return h('section', { class: 'card', style: fachC(k) }, h('h2', null, `📚 Stoffverteilung ${kl}`, h('span', { class: 'grow' }),
+      andere.length ? h('button', { class: 'small', onclick: async () => {
+        const v = await formular('Themen übernehmen', [{ k: 'von', label: 'Aus Klasse', type: 'select', options: andere.map(a => [a, a]) }], {}, { ok: 'Übernehmen', hinweis: `Kopiert die Themen als „offen“ nach ${kl}. Vorhandene Themen bleiben.` });
+        if (!v) return; let p = Math.max(0, ...l.map(s => s.pos || 0));
+        stoffVon(k, v.von).forEach(s => put('stoff', { fach: k, klasse: kl, titel: s.titel, std: s.std, hinweis: s.hinweis, status: 'offen', pos: ++p }, true)); render();
+      } }, '⇣ Aus anderer Klasse') : null,
+      h('button', { class: 'small primary', onclick: () => stoffDialog(k, kl) }, '+ Thema')),
+      h('p', { class: 'note' }, l.length ? `${fertig} von ${l.length} Themen fertig · ${stdIst} von ${stdPlan} geplanten Stunden gebraucht` : 'Noch keine Themen. Die Reihenfolge hier bestimmt, welches Thema nach „geschafft“ als nächstes kommt.'),
+      l.length ? h('div', { class: 'scroll' }, h('table', { class: 'tbl' },
+        h('thead', null, h('tr', null, h('th', null, '#'), h('th', null, 'Thema'), h('th', null, 'Std.'), h('th', null, 'Stand'), h('th', null, ''))),
+        h('tbody', null, l.map((x, i) => {
+          const g = gebraucht(x.id), st = stLabel[x.status] || stLabel.offen;
+          return h('tr', { class: x === cur ? 'cur' : x.status === 'fertig' ? 'done' : '' },
+            h('td', { class: 'tm' }, i + 1),
+            h('td', null, h('div', { style: 'font-weight:600' }, x.titel, x === cur ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'aktuell') : null),
+              x.hinweis ? h('div', { class: 'note' }, x.hinweis) : null, x.von && x.von !== S.ich.name ? h('div', { class: 'note' }, 'geändert von ' + x.von) : null),
+            h('td', { class: 'tm', title: 'gebraucht / geplant' }, `${g} / ${x.std || 0}`, g > (+x.std || 0) && x.std ? h('span', { style: 'color:var(--crit)' }, ' !') : null),
+            h('td', null, h('button', { class: 'small badge ' + st[1], title: 'Stand wechseln', onclick: () => put('stoff', Object.assign({}, x, { status: x.status === 'offen' || !x.status ? 'laeuft' : x.status === 'laeuft' ? 'fertig' : 'offen' })) }, st[0])),
+            h('td', null, h('div', { class: 'btns', style: 'flex-wrap:nowrap' },
+              h('button', { class: 'small ghost', disabled: i === 0, 'aria-label': 'Nach oben', onclick: () => tausch(x, l[i - 1]) }, '↑'),
+              h('button', { class: 'small ghost', disabled: i === l.length - 1, 'aria-label': 'Nach unten', onclick: () => tausch(x, l[i + 1]) }, '↓'),
+              h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => stoffDialog(k, kl, x) }, '✎'))));
+        })))) : null);
+  }
+
+  // ---------- Klasse: alle Fächer auf einen Blick (Absprache unter Fachlehrern) ----------
+  function viewKlasse(kl) {
+    const w = [h('div', { class: 'crumb' }, '⌂ Meine Klassen › ' + kl), h('h1', null, 'Klasse ' + kl),
+      h('p', { class: 'note' }, 'Wo steht jedes Fach in dieser Klasse? So sieht man, ob z. B. Fachrechnen schon die Grundlagen für Elektrotechnik gelegt hat.')];
+    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.FAECHER.map(f => {
+      const l = stoffVon(f.k, kl); if (!l.length && !S.plan.some(e => e.fach === f.k && norm(e.klasse) === norm(kl))) return null;
+      const cur = l.find(x => x.status !== 'fertig'), fertig = l.filter(x => x.status === 'fertig').length;
+      const last = alive('log').filter(x => x.fach === f.k && norm(x.klasse) === norm(kl) && x.erg !== 'ignoriert').sort((a, b) => b.datum.localeCompare(a.datum))[0];
+      return h('a', { class: 'row', href: '#/fach/' + f.k, style: 'text-decoration:none;color:inherit', onclick: () => { S.ui.fk[f.k] = kl; save(true); } },
+        F(f.k), h('b', null, f.name), h('span', { class: 'topic grow' }, cur ? 'aktuell: ' + cur.titel : l.length ? 'alles fertig' : 'keine Stoffverteilung'),
+        l.length ? h('span', { class: 'tm' }, `${fertig}/${l.length}`) : null, last ? h('span', { class: 'note' }, `zuletzt ${tagLabel(last.datum)}: ${last.erg}`) : null);
+    }))));
+    w.push(h('div', { class: 'two' }, cardTermine(60, x => norm(x.klasse) === norm(kl), { klasse: kl }), cardPinnwand(6, x => norm(x.klasse) === norm(kl), { klasse: kl })));
+    return w;
+  }
+
+  // ---------- Stundenplan, Klingel, Erinnerungen ----------
+  async function planDialog(tag, slot) {
+    const x = S.plan.find(e => +e.tag === tag && String(e.nr) === String(slot.nr));
+    const v = await formular(`${WTL[tag]}, ${slot.nr}. Stunde (${slot.start}–${slot.ende})`, [
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– frei –') },
+      { k: 'klasse', label: 'Klasse', ph: 'z. B. 3A', list: klassen() },
+      { k: 'raum', label: 'Raum / Werkstatt' },
+      { k: 'woche', label: 'Gilt für alle Stunden dieser Klasse mit gleichem Fach? (nur Raum)', type: 'checkbox' },
+    ], x || {}, { loeschen: !!x });
+    S.plan = S.plan.filter(e => !(+e.tag === tag && String(e.nr) === String(slot.nr)));
+    if (v && v !== 'del' && v.fach) {
+      S.plan.push({ tag, nr: String(slot.nr), fach: v.fach, klasse: v.klasse, raum: v.raum });
+      if (v.woche) S.plan.forEach(e => { if (e.fach === v.fach && norm(e.klasse) === norm(v.klasse)) e.raum = v.raum; });
+      if (!S.ui.seit) S.ui.seit = heute();
+    } else if (!v && x) S.plan.push(x);
+    save(true); render();
+  }
+  function viewPlan() {
+    const bell = E.tag(new Date(), S), tage = [1, 2, 3, 4, 5];
+    if (S.plan.some(e => +e.tag === 6)) tage.push(6);
+    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Stundenplan'), h('h1', null, 'Stundenplan & Klingel')];
+    w.push(h('section', { class: 'card' }, h('h2', null, '🗓 Wochenplan', h('span', { class: 'grow' }),
+      !tage.includes(6) ? h('button', { class: 'small', onclick: () => { planDialog(6, bell.find(b => b.typ === 'stunde')); } }, '+ Samstag') : null),
+      h('p', { class: 'note' }, 'Feld antippen zum Eintragen. Bei Pausen „Aufsicht“ anhaken – dann kommt vorher eine Erinnerung.'),
+      h('div', { class: 'scroll' }, h('table', { class: 'week' },
+        h('thead', null, h('tr', null, h('th', null, ''), tage.map(t => h('th', { style: t === new Date().getDay() ? 'color:var(--accent)' : '' }, WTL[t])))),
+        h('tbody', null, bell.map(b => b.typ === 'pause'
+          ? h('tr', { class: 'pz' }, h('td', { class: 'tcell' }, `${b.von}–${b.bis}`), tage.map(t => {
+              const id = t + '|' + b.von, on = S.aufsicht.includes(id);
+              return h('td', null, h('label', null, h('input', { type: 'checkbox', checked: on, onchange: ev => { S.aufsicht = S.aufsicht.filter(a => a !== id); if (ev.target.checked) S.aufsicht.push(id); save(true); } }), `${b.name || 'Pause'} · Aufsicht`));
+            }))
+          : h('tr', null, h('td', { class: 'tcell' }, h('b', null, b.nr + '.'), h('br'), b.von, h('br'), b.bis), tage.map(t => {
+              const e = S.plan.find(x => +x.tag === t && String(x.nr) === String(b.nr) && x.fach);
+              return h('td', null, h('button', { class: 'slot' + (e ? ' has' : ''), style: e ? fachC(e.fach) : '', onclick: () => planDialog(t, { nr: b.nr, start: b.von, ende: b.bis }) },
+                e ? [h('span', null, F(e.fach), ' ', h('b', null, e.klasse || '')), e.raum ? h('small', null, e.raum) : null] : h('small', null, '+')));
+            }))))))));
+
+    // Klingelzeiten
+    const raw = S.bell;
+    const setBell = () => { S.bell = raw; save(true); render(); };
+    w.push(h('section', { class: 'card' }, h('h2', null, '🔔 Klingelzeiten', h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => { raw.push({ typ: 'stunde', nr: String(raw.filter(b => b.typ === 'stunde').length + 1), start: '', ende: '' }); setBell(); } }, '+ Stunde'),
+      h('button', { class: 'small', onclick: () => { raw.push({ typ: 'pause', name: 'Pause', start: '', ende: '' }); setBell(); } }, '+ Pause'),
+      h('button', { class: 'small', onclick: async () => { const v = await formular('Standard-Klingelzeiten', [], {}, { ok: 'Zurücksetzen', hinweis: 'Ersetzt die Klingelzeiten durch die Vorlage. Der Stundenplan bleibt (er hängt an der Stunden-Nummer).' }); if (v) { S.bell = E.DEFAULT_BELL.map(b => Object.assign({}, b)); save(true); render(); } } }, 'Vorlage')),
+      h('p', { class: 'note' }, 'Gilt für alle Tage. Änderungen werden sofort übernommen. Eine Stunde mit leerer Uhrzeit wird ignoriert.'),
+      h('div', { class: 'list' }, raw.map((b, i) => h('div', { class: 'bellrow' },
+        h('select', { 'aria-label': 'Art', onchange: ev => { b.typ = ev.target.value; setBell(); }, value: b.typ }, h('option', { value: 'stunde' }, 'Stunde'), h('option', { value: 'pause' }, 'Pause')),
+        b.typ === 'stunde' ? h('input', { 'aria-label': 'Nummer', value: b.nr || '', onchange: ev => { b.nr = ev.target.value.trim(); setBell(); } })
+          : h('input', { 'aria-label': 'Name', value: b.name || '', onchange: ev => { b.name = ev.target.value.trim(); setBell(); } }),
+        h('input', { type: 'time', 'aria-label': 'Beginn', value: b.start || '', onchange: ev => { b.start = ev.target.value; setBell(); } }),
+        h('input', { type: 'time', 'aria-label': 'Ende', value: b.ende || '', onchange: ev => { b.ende = ev.target.value; setBell(); } }),
+        h('button', { class: 'small ghost', 'aria-label': 'Entfernen', onclick: () => { raw.splice(i, 1); setBell(); } }, '✕'))))));
+
+    // Erinnerungen
+    const es = S.einst;
+    const num = (k, lab) => h('label', null, h('input', { type: 'number', min: '0', max: '30', value: es[k], onchange: ev => { es[k] = Math.max(0, Math.min(30, parseInt(ev.target.value, 10) || 0)); save(true); } }), lab);
+    const chk = (k, lab) => h('label', null, h('input', { type: 'checkbox', checked: !!es[k], onchange: ev => { es[k] = ev.target.checked; save(true); render(); } }), lab);
+    const perm = 'Notification' in window ? Notification.permission : 'nicht verfügbar';
+    w.push(h('section', { class: 'card' }, h('h2', null, '⏰ Erinnerungen'),
+      h('div', { class: 'settings' },
+        chk('aktiv', 'Erinnerungen einschalten'), chk('ton', 'Mit Ton (Gong)'),
+        num('vorEnde', 'Minuten vor Stundenende (0 = aus)'), chk('beiEnde', 'Beim Klingeln: „Stunde zu Ende“'),
+        chk('pauseBeginn', 'Pausenbeginn melden'), num('vorPauseEnde', 'Minuten vor Pausenende (0 = aus)'),
+        num('aufsichtVorher', 'Minuten vor Pausenaufsicht'), chk('nurEigene', 'Nur für eigene Stunden (sonst jede Klingel)')),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('span', { class: 'note' }, 'Systemmitteilungen: ' + (perm === 'granted' ? 'erlaubt ✓' : perm === 'denied' ? 'im Browser blockiert – in den Website-Einstellungen erlauben' : perm)),
+        perm === 'default' ? h('button', { class: 'small', onclick: () => Notification.requestPermission().then(render) }, 'Erlauben') : null,
+        h('button', { class: 'small', onclick: () => E.testen() }, 'Erinnerung testen')),
+      h('p', { class: 'note' }, 'Erinnerungen kommen nur, solange diese Seite oder der Timer geöffnet ist (auch im Hintergrund). Sind beide offen, kommt jede Erinnerung trotzdem nur einmal.')));
+    return w;
+  }
+
+  // ---------- Team & Austausch ----------
+  let fh = null; // Datei-Handle der Team-Datei
+  const fsOk = 'showOpenFilePicker' in window && 'indexedDB' in window;
+  const idb = (mode, fn) => new Promise((res, rej) => {
+    const r = indexedDB.open('kfz-arbeitsplatz', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => { const tx = r.result.transaction('kv', mode), q = fn(tx.objectStore('kv')); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); };
+  });
+  let syncInfo = '';
+  async function abgleichen(interaktiv) {
+    if (!fh) return;
+    try {
+      let p = await fh.queryPermission({ mode: 'readwrite' });
+      if (p !== 'granted') {
+        if (!interaktiv) { syncInfo = 'Zugriff abgelaufen – „Jetzt abgleichen“ klicken.'; renderSide(); if (route()[0] === 'team') render(); return; }
+        p = await fh.requestPermission({ mode: 'readwrite' });
+        if (p !== 'granted') { syncInfo = 'Zugriff verweigert.'; render(); return; }
+      }
+      const txt = await (await fh.getFile()).text();
+      let n = 0, alt = '';
+      if (txt.trim()) {
+        const j = JSON.parse(txt);
+        if (!j || j.format !== FORMAT) throw new Error('Die Datei ist keine Team-Datei dieses Programms.');
+        n = merge(j.team); alt = JSON.stringify(j.team);
+      }
+      const neu = paket();
+      if (JSON.stringify(neu.team) !== alt) { const wr = await fh.createWritable(); await wr.write(JSON.stringify(neu)); await wr.close(); }
+      S.ui.sync = Date.now(); save(true);
+      syncInfo = `Abgeglichen um ${uhr(Date.now())}` + (n ? ` · ${n} Änderungen von Kollegen übernommen` : '');
+      if (n || interaktiv) render(); else renderSide();
+    } catch (e) {
+      syncInfo = 'Abgleich fehlgeschlagen: ' + (e && e.message || e);
+      if (interaktiv) E.toast({ art: 'ende', titel: 'Abgleich fehlgeschlagen', text: String(e && e.message || e) });
+      if (route()[0] === 'team') render();
+    }
+  }
+  async function dateiVerbinden(neu) {
+    try {
+      const opts = { types: [{ description: 'Team-Datei', accept: { 'application/json': ['.json'] } }] };
+      const handle = neu ? await window.showSaveFilePicker(Object.assign({ suggestedName: 'kfz-team.json' }, opts)) : (await window.showOpenFilePicker(opts))[0];
+      fh = handle; await idb('readwrite', st => st.put(handle, 'teamdatei'));
+      await abgleichen(true);
+    } catch (e) { if (e && e.name !== 'AbortError') E.toast({ art: 'ende', titel: 'Team-Datei', text: String(e.message || e) }); }
+  }
+  function download(name, obj) {
+    const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: 'application/json' })), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  $('fileIn').onchange = async ev => {
+    const file = ev.target.files[0]; ev.target.value = ''; if (!file) return;
+    try {
+      const j = JSON.parse(await file.text());
+      if (j && j.format === FORMAT) { const n = merge(j.team); save(); render(); E.toast({ art: 'pause', titel: 'Import fertig', text: `${n} neue oder geänderte Einträge übernommen` + (j.von ? ` (von ${j.von})` : '') + '.' }); }
+      else if (j && j.format === 'kfz-arbeitsplatz-sicherung' && j.daten) {
+        const v = await formular('Sicherung wiederherstellen?', [], {}, { ok: 'Wiederherstellen', hinweis: 'Ersetzt Stundenplan, Klingelzeiten und Einstellungen. Team-Einträge werden zusammengeführt, nicht gelöscht.' });
+        if (!v) return;
+        const team = S.team; S = Object.assign(laden(), j.daten); S.team = team; COLS.forEach(c => { if (!Array.isArray(S.team[c])) S.team[c] = []; });
+        merge(j.daten.team || {}); (j.daten.team && COLS.forEach(c => (j.daten.team[c] || []).filter(x => valid(x) && x.privat && !S.team[c].some(y => y.id === x.id)).forEach(x => S.team[c].push(x))));
+        save(); render();
+      } else throw new Error('Unbekanntes Dateiformat.');
+    } catch (e) { E.toast({ art: 'ende', titel: 'Import fehlgeschlagen', text: String(e.message || e) }); }
+  };
+  async function personDialog(x) {
+    const v = await formular(x ? 'Kollegin/Kollege bearbeiten' : 'Kollegin/Kollege hinzufügen', [
+      { k: 'name', label: 'Name', req: true },
+      ...E.FAECHER.map(f => ({ k: 'f_' + f.k, label: `${f.icon} ${f.name}`, type: 'checkbox' })),
+      { k: 'klassen', label: 'Klassen', ph: 'z. B. 1A, 2B, 3A' },
+      { k: 'kontakt', label: 'Kontakt (optional)', ph: 'Telefon oder E-Mail' },
+    ], x ? Object.assign({}, x, Object.fromEntries((x.faecher || []).map(k => ['f_' + k, true]))) : {}, { loeschen: !!x });
+    if (v === 'del') return drop('personen', x.id);
+    if (!v) return;
+    put('personen', Object.assign({}, x || {}, { name: v.name, klassen: v.klassen, kontakt: v.kontakt, faecher: E.FAECHER.filter(f => v['f_' + f.k]).map(f => f.k) }));
+  }
+  function viewTeam() {
+    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Team'), h('h1', null, 'Team & Austausch')];
+    w.push(h('section', { class: 'card' }, h('h2', null, '👤 Ich'),
+      h('div', { class: 'settings' },
+        h('label', null, 'Name', h('input', { value: S.ich.name, placeholder: 'z. B. G. Peer', onchange: ev => { S.ich.name = ev.target.value.trim(); save(true); render(); } })),
+        h('label', null, 'Klassenvorstand', h('input', { value: S.ich.klasse, placeholder: 'z. B. 3A', onchange: ev => { S.ich.klasse = ev.target.value.trim(); save(true); } }))),
+      h('p', { class: 'note' }, 'Der Name steht bei deinen Einträgen, damit Kolleginnen und Kollegen sehen, von wem eine Änderung kommt.')));
+
+    w.push(h('section', { class: 'card' }, h('h2', null, '👥 Fachlehrer-Team', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => personDialog() }, '+ Person')),
+      alive('personen').length ? h('div', { class: 'list' }, alive('personen').sort((a, b) => a.name.localeCompare(b.name, 'de')).map(p => h('div', { class: 'row' },
+        h('b', null, p.name), (p.faecher || []).map(F), p.klassen ? h('span', { class: 'note' }, p.klassen) : null, p.kontakt ? h('span', { class: 'note' }, p.kontakt) : null,
+        h('span', { class: 'grow' }), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => personDialog(p) }, '✎'))))
+        : h('div', { class: 'empty' }, 'Noch niemand eingetragen.')));
+
+    w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, '⇅ Gemeinsame Team-Datei'),
+      h('p', { class: 'note' }, 'So arbeitet ihr zusammen, ohne Server: Eine Datei kfz-team.json liegt in einem gemeinsamen Ordner (OneDrive, Teams, Google Drive oder Netzlaufwerk). Jede Person verbindet sie einmal. Danach gleicht das Programm Stoffverteilung, Pinnwand, Termine, Team-Aufgaben und Rückmeldungen jede Minute ab. Private To-dos, Stundenplan und Klingelzeiten bleiben auf deinem Gerät.'),
+      fsOk ? h('div', { class: 'row', style: 'background:none;padding:0' },
+        fh ? [h('span', null, '📄 ', h('b', null, fh.name)), h('button', { class: 'primary small', onclick: () => abgleichen(true) }, 'Jetzt abgleichen'),
+          h('button', { class: 'small', onclick: async () => { fh = null; await idb('readwrite', st => st.delete('teamdatei')); syncInfo = ''; render(); } }, 'Trennen')]
+          : [h('button', { class: 'primary small', onclick: () => dateiVerbinden(false) }, 'Vorhandene Team-Datei öffnen'), h('button', { class: 'small', onclick: () => dateiVerbinden(true) }, 'Neue Team-Datei anlegen')])
+        : h('p', { class: 'note', style: 'color:var(--warn)' }, 'Dieser Browser kann keine Datei dauerhaft verbinden (geht in Chrome und Edge am Computer). Nutze stattdessen Exportieren/Importieren.'),
+      syncInfo ? h('p', { class: 'note' }, syncInfo) : S.ui.sync ? h('p', { class: 'note' }, 'Zuletzt abgeglichen: ' + new Date(S.ui.sync).toLocaleString('de-DE')) : null));
+
+    w.push(h('section', { class: 'card' }, h('h2', null, '📦 Per Datei weitergeben'),
+      h('p', { class: 'note' }, 'Ohne gemeinsamen Ordner: Team-Daten exportieren und per Mail/Teams schicken. Beim Importieren wird zusammengeführt – nichts geht verloren, die neuere Änderung gewinnt.'),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'small', onclick: () => download(`kfz-team-${heute()}.json`, paket()) }, '⇡ Team-Daten exportieren'),
+        h('button', { class: 'small', onclick: () => $('fileIn').click() }, '⇣ Datei importieren'),
+        h('button', { class: 'small', onclick: () => download(`kfz-sicherung-${heute()}.json`, { format: 'kfz-arbeitsplatz-sicherung', version: 1, daten: S }) }, '💾 Komplette Sicherung'))));
+    return w;
+  }
+
+  // ---------- Suche ----------
+  function viewSuche(q) {
+    const t = q.toLowerCase(), has = (...v) => v.some(x => typeof x === 'string' && x.toLowerCase().includes(t));
+    const stoff = alive('stoff').filter(x => has(x.titel, x.hinweis, x.klasse, E.fach(x.fach).name));
+    const todos = todoGruppen().all.filter(x => has(x.titel, x.notiz, x.klasse));
+    const termine = alive('termine').filter(x => has(x.titel, x.klasse, x.art));
+    const notizen = alive('notizen').filter(x => has(x.text, x.klasse));
+    const w = [h('div', { class: 'crumb' }, '⌂ Suche'), h('h1', null, `Suche: „${q}“`)];
+    if (stoff.length) w.push(h('section', { class: 'card' }, h('h2', null, '📚 Themen'), h('div', { class: 'list' }, stoff.map(x =>
+      h('a', { class: 'row', href: '#/fach/' + x.fach, style: 'color:inherit;text-decoration:none', onclick: () => { S.ui.fk[x.fach] = x.klasse; save(true); } }, F(x.fach), h('span', { class: 'kl' }, x.klasse), h('span', null, x.titel), h('span', { class: 'badge mut' }, x.status || 'offen'))))));
+    if (todos.length) w.push(h('section', { class: 'card' }, h('h2', null, '✅ To-dos'), h('div', { class: 'list' }, todos.map(todoZeile))));
+    if (termine.length) w.push(h('section', { class: 'card' }, h('h2', null, '📌 Termine'), h('div', { class: 'list' }, termine.map(terminZeile))));
+    if (notizen.length) w.push(h('section', { class: 'card' }, h('h2', null, '💬 Pinnwand'), h('div', { class: 'list' }, notizen.map(pinZeile))));
+    if (w.length === 2) w.push(h('div', { class: 'empty' }, 'Nichts gefunden.'));
+    return w;
+  }
+  let qTimer = null;
+  $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { const v = $('q').value.trim(); location.hash = v ? '#/suche/' + encodeURIComponent(v) : '#/start'; }, 250); });
+
+  // ---------- Rendern ----------
+  function render() {
+    const [r, a] = route();
+    renderSide();
+    const main = $('main'), y = main.scrollTop;
+    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam,
+      pinnwand: () => [h('div', { class: 'crumb' }, '⌂ Organisation › Pinnwand'), h('h1', null, 'Pinnwand'), cardPinnwand(0)],
+      klasse: () => viewKlasse(a || ''), suche: () => viewSuche(a || '') };
+    main.textContent = '';
+    main.append(h('div', { class: 'wrap' }, (views[r] || viewStart)()));
+    main.scrollTop = y;
+  }
+  window.addEventListener('hashchange', () => { document.body.classList.remove('menu'); $('main').scrollTop = 0; render(); });
+  $('menuBtn').onclick = () => document.body.classList.toggle('menu');
+  document.addEventListener('click', e => { if (document.body.classList.contains('menu') && !e.target.closest('aside') && e.target !== $('menuBtn')) document.body.classList.remove('menu'); });
+  window.addEventListener('storage', e => { if (e.key === E.KEY && !$('dlg').open) { S = laden(); render(); } });
+  $('syncBtn').onclick = () => abgleichen(true);
+
+  // Takt: Uhr, Jetzt-Karte, Erinnerungen
+  let lastMin = -1;
+  function tick() {
+    const now = new Date();
+    $('clock').textContent = uhr(now);
+    const busy = $('dlg').open || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.id !== 'q');
+    if (route()[0] === 'start' && $('jetzt')) { const j = $('jetzt'); j.textContent = ''; j.append(...jetztInhalt()); }
+    if (now.getMinutes() !== lastMin) { lastMin = now.getMinutes(); todoErinnerungen(); if (!busy) render(); }
+  }
+  E.starten();
+  setInterval(tick, 1000);
+  setInterval(() => { if (fh && !document.hidden) abgleichen(false); }, 60000);
+  if (fsOk) idb('readonly', st => st.get('teamdatei')).then(hd => { if (hd) { fh = hd; abgleichen(false); renderSide(); } }).catch(() => {});
+  render(); tick();
+})();
+</script>
+</body>
+</html>
