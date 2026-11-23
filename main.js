@@ -64,6 +64,7 @@ function create() {
   win.on('moved', remember);
   win.on('close', remember);
   win.on('closed', () => { win = null; });
+  win.on('focus', () => win.flashFrame(false));
 }
 
 // Arbeitsplatz: normales Fenster neben dem Timer
@@ -97,6 +98,13 @@ ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: Stundenend
   win.show(); win.focus();
 });
 ipcMain.on('quit', () => app.quit());
+// Pausenbeginn: Timer nach vorne holen und in der Taskleiste blinken lassen, ohne den Fokus zu stehlen
+ipcMain.on('aufmerksam', () => {
+  if (!win) return;
+  if (!win.isVisible()) win.showInactive();
+  win.moveTop();
+  if (!win.isFocused()) win.flashFrame(true);
+});
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {

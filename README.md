@@ -59,6 +59,7 @@ Zip entpacken und `Unterrichtstimer.exe` starten. Das Programm ist nicht signier
 - **Schieberegler:** Deckkraft des Hintergrunds, ganz links ist er vollständig durchsichtig.
 - **Größe:** wechselt zwischen klein, mittel und groß.
 - **Planen:** großes Fenster zum Bearbeiten des Stundenplans; **Mini-Ansicht** führt zurück.
+- **Pausen:** Ein Balken oben kündigt jede Pause aus den Klingelzeiten an (Vorwarnung einstellbar, Standard 5 Minuten). Zum Pausenbeginn blinkt das Fenster und es kommt ein Ton, bis man **OK** klickt; danach zeigt der Balken die restliche Pausenzeit. Die Zeiten werden im Arbeitsplatz unter **Klingelzeiten** gepflegt; im Timer unter „Pausen im Fenster anzeigen“ abschaltbar.
 - **Vollbild** (oder Taste F): Timer über den ganzen Bildschirm, z. B. für den Beamer. Esc oder F führt zurück.
 - **✕** beendet das Programm. Plan und laufende Stunde bleiben gespeichert.
 

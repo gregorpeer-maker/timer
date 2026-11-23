@@ -11,7 +11,7 @@
   :root {
     --bg: #000000; --panel: #0d0d10; --fg: #f4f4f6; --muted: #8a8a96; --line: #22222a;
     --accent: #4f8cff; --on-accent: #ffffff;
-    --warn: #ffb020; --crit: #ff5b5b; --good: #34d399;
+    --warn: #ffb020; --on-warn: #1a1000; --crit: #ff5b5b; --good: #34d399;
     --p1: #4f8cff; --p2: #b18cff; --p3: #2ee6c5; --p4: #ff8a3d; --p5: #ff6fa8;
     --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
     --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -19,7 +19,7 @@
   }
   :root[data-theme="light"] {
     --bg: #f2f4f7; --panel: #ffffff; --fg: #16202b; --muted: #5b6978; --line: #d3dae2;
-    --accent: #1f6fd6; --warn: #b06a00; --crit: #c92a2a; --good: #19804a;
+    --accent: #1f6fd6; --warn: #b06a00; --on-warn: #ffffff; --crit: #c92a2a; --good: #19804a;
     --p1: #2a7de1; --p2: #8257d0; --p3: #0c948a; --p4: #cf7a1f; --p5: #bf3f76; color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -149,6 +149,22 @@
   body.desk:not(.widget) .top { -webkit-app-region: drag; }
   body.desk:not(.widget) .widgetonly { display: none; }
 
+  /* Pausen-Balken: Vorwarnung, blinkend zum Pausenbeginn, danach Restzeit */
+  .brk {
+    display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; border-radius: 10px;
+    border: 2px solid var(--warn); background: var(--panel); color: var(--warn); text-shadow: none;
+    font-family: var(--display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums;
+  }
+  .brk span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brk[data-art="laeuft"] { border-color: var(--line); color: var(--fg); }
+  .brk[data-art="jetzt"] { background: var(--warn); color: var(--on-warn); animation: brk-blink 1s steps(1, end) infinite; }
+  .brk button { padding: 4px 16px; font-weight: 700; background: var(--bg); color: var(--fg); border-color: var(--bg); }
+  @keyframes brk-blink { 50% { background: var(--panel); color: var(--warn); } }
+  body.fs .brk { font-size: 30px; }
+  .pausen { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .chk { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
+  .chk input { accent-color: var(--accent); width: 16px; height: 16px; }
+
   /* Mini-Ansicht: alle Maße in rem, 1rem = Fensterbreite / 34 */
   html.widget { font-size: calc(100vw / 34); background: transparent; }
   body.widget {
@@ -177,6 +193,12 @@
   body.widget .controls { gap: .4rem; }
   body.widget button { padding: .35rem .8rem; border-radius: .6rem; font-size: 1.25rem; min-width: 0; border-width: .1rem; }
   body.widget #alpha { width: 7rem; padding: 0; border: 0; background: none; accent-color: var(--accent); vertical-align: middle; }
+  body.widget .brk { font-size: 1.5rem; padding: .25rem .7rem; gap: .6rem; border-width: .15rem; border-radius: .6rem; }
+  body.widget .brk button { padding: .15rem .9rem; font-size: 1.3rem; }
+  body.widget.hasbrk .lesson { display: none; }
+  body.widget .brk[data-art="jetzt"] { animation: none; }   /* im Mini-Fenster blinkt das ganze Fenster, der Balken bleibt gelb */
+  body.widget.brkalert { box-shadow: inset 0 0 0 .3rem var(--warn); animation: brk-fenster 1s steps(1, end) infinite; }
+  @keyframes brk-fenster { 50% { background: color-mix(in srgb, var(--warn) 45%, var(--bg)); } }
 </style>
 </head>
 <body>
@@ -186,6 +208,11 @@
   <span class="clock" id="clock" title="Aktuelle Uhrzeit">--:--</span>
   <span class="chip" id="chip" role="status">Bereit</span>
 </header>
+
+<div class="brk" id="brk" hidden>
+  <span id="brkTxt"></span>
+  <button id="brkOk" title="Pause gesehen – Blinken beenden" hidden>OK</button>
+</div>
 
 <section class="lesson" aria-label="Verlauf der Stunde">
   <div class="bar-wrap">
@@ -258,6 +285,14 @@
       <div class="line">
         <button id="wsBtn" title="Arbeitsplatz mit Stundenplan, Stoffverteilung, To-dos und Team öffnen">🏠 Arbeitsplatz</button>
         <span class="note" id="bellNote"></span>
+      </div>
+      <div class="pausen" id="pausenBox">
+        <div class="line">
+          <label class="chk"><input id="pzAn" type="checkbox" checked> Pausen im Fenster anzeigen</label>
+          <label for="pzVorher">Vorwarnung</label>
+          <input id="pzVorher" type="number" min="0" max="30" value="5"> Min
+        </div>
+        <p class="note" id="pzListe"></p>
       </div>
       <p class="note">Ohne Uhrzeit endet die Stunde nach der Plandauer ab Start. Mit Uhrzeit zählt die Klingel: wer spät startet, ist sofort im Verzug. Pausen laufen gegen die Uhr und erzeugen ebenfalls Verzug.</p>
     </div>
@@ -542,6 +577,7 @@
     $('nextBtn').disabled = $('plusBtn').disabled = !active();
     $('prevBtn').disabled = !active() || S.idx === 0;
     $('resetBtn').disabled = st === 'idle';
+    pausenZeigen(now);
     if (pipOn) drawPip();
     try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = st === 'running' ? 'playing' : 'paused'; } catch (e) {}
     document.title = active() ? `${st === 'running' ? '▶ ' : '⏸ '}${$('time').textContent} ${cur.name}` : 'Unterrichtstimer';
@@ -604,10 +640,17 @@
     g.fillText($('pname').textContent, W / 2, 70, W - 80);
     g.fillStyle = css(tone); g.font = '700 250px ' + F;
     g.fillText($('time').textContent, W / 2, 245, W - 80);
-    const s = $('chip').dataset.s;
-    g.fillStyle = css(s === 'crit' ? '--crit' : s === 'warn' ? '--warn' : s === 'good' ? '--good' : '--muted');
-    g.font = '700 62px ' + F;
-    g.fillText($('chip').textContent, W / 2, 410, W - 80);
+    if (brkNow) {   // Pause statt Verzug anzeigen, zum Pausenbeginn blinkend
+      const an = brkNow.art === 'jetzt' && Math.floor(Date.now() / 500) % 2 === 0;
+      if (an) { g.fillStyle = css('--warn'); g.fillRect(24, 362, W - 48, 96); }
+      g.fillStyle = css(an ? '--on-warn' : brkNow.art === 'laeuft' ? '--fg' : '--warn'); g.font = '700 56px ' + F;
+      g.fillText($('brkTxt').textContent, W / 2, 410, W - 80);
+    } else {
+      const s = $('chip').dataset.s;
+      g.fillStyle = css(s === 'crit' ? '--crit' : s === 'warn' ? '--warn' : s === 'good' ? '--good' : '--muted');
+      g.font = '700 62px ' + F;
+      g.fillText($('chip').textContent, W / 2, 410, W - 80);
+    }
     const bw = W - 80, tot = totalSec(), y = H - 62, h = 24; let x = 40;
     S.phases.forEach((p, i) => {
       const w = bw * p.sec / tot, f = parseFloat(refs[i] && refs[i].fill.style.width) || 0;
@@ -718,6 +761,84 @@
     if (desk && desk.onAuftrag) desk.onAuftrag((ende, titel) => uebernehmen(ende, titel));
   } else { $('endBell').hidden = true; }
   $('wsBtn').onclick = () => { if (desk && desk.arbeitsplatz) desk.arbeitsplatz(); else window.open('arbeitsplatz.html', 'arbeitsplatz'); };
+
+  // ---------- Pausen aus den Klingelzeiten: Vorwarnung und Blinken im Fenster ----------
+  // Quelle sind die Klingelzeiten im Arbeitsplatz (pro Wochentag, auch aus WebUntis). Anders als die
+  // kurzen Hinweise aus erinnerung.js erscheint jede Pause des Tages, auch ohne eigenen Unterricht davor.
+  const PKEY = 'unterrichtstimer.pausen', OK_KEY = 'unterrichtstimer.pausen-ok';
+  let P = { an: true, vorher: 5 }, okIds = [], pausen = [], pausenAm = 0, pausenTag = '', brkNow = null, brkGemeldet = '';
+  try {
+    const j = JSON.parse(localStorage.getItem(PKEY) || 'null');
+    if (j) P = { an: j.an !== false, vorher: Math.min(30, Math.max(0, Math.round(+j.vorher) || 0)) };
+    const a = JSON.parse(localStorage.getItem(OK_KEY) || '[]');
+    if (Array.isArray(a)) okIds = a.filter(x => typeof x === 'string');
+  } catch (e) {}
+  const saveP = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch (e) {} };
+  const pzName = p => p.aufsicht && !/aufsicht/i.test(p.name) ? p.name + ' (Aufsicht)' : p.name;
+  const pzIcon = p => p.aufsicht ? '👀' : '☕';
+
+  function pausenHeute(now) {
+    const heute = ERIN.datum(now);
+    if (now - pausenAm < 15000 && heute === pausenTag) return pausen;
+    pausenAm = now; pausenTag = heute; pausen = [];
+    let text;
+    try {
+      const s = ERIN.laden(), E = s.einst;
+      if (E.aktiv === false) text = 'Erinnerungen sind im Arbeitsplatz ausgeschaltet.';
+      else if (E.stillAm === heute) text = 'Heute stumm geschaltet (Arbeitsplatz).';
+      else {
+        pausen = ERIN.tag(now, s).filter(x => x.typ === 'pause' && !x.entfall && x.ende > x.start)
+          .map(x => ({ name: x.name || 'Pause', von: x.von, bis: x.bis, start: x.start, ende: x.ende, aufsicht: !!x.aufsicht, key: heute + '|' + x.von }));
+        text = pausen.length ? 'Heute: ' + pausen.map(p => `${pzIcon(p)} ${pzName(p)} ${p.von}–${p.bis}`).join(' · ')
+          : 'Heute keine Pausen in den Klingelzeiten.';
+      }
+    } catch (e) { text = 'Die Klingelzeiten konnten nicht gelesen werden.'; }
+    $('pzListe').textContent = text + ' Zeiten ändern: 🏠 Arbeitsplatz → Klingelzeiten.';
+    return pausen;
+  }
+
+  function pausenZeigen(now) {
+    let st = null;
+    if (ERIN && P.an) {
+      const lead = P.vorher * 60000;
+      for (const p of pausenHeute(now)) {
+        if (now >= p.start && now < p.ende) { st = { art: okIds.includes(p.key) ? 'laeuft' : 'jetzt', p }; break; }
+        if (lead && now >= p.start - lead && now < p.start) { st = { art: 'bald', p }; break; }
+      }
+    } else if (ERIN) pausenHeute(now);
+    brkNow = st;
+    const el = $('brk');
+    el.hidden = !st;
+    document.body.classList.toggle('hasbrk', !!st);
+    document.body.classList.toggle('brkalert', !!st && st.art === 'jetzt');
+    if (!st) return;
+    const p = st.p, kopf = `${pzIcon(p)} ${pzName(p)}`;
+    el.dataset.art = st.art;
+    $('brkTxt').textContent = st.art === 'bald' ? `${kopf} in ${fmt(p.start - now, true)}`
+      : st.art === 'jetzt' ? `${kopf}! Bis ${p.bis}` : `${kopf} · noch ${fmt(p.ende - now, true)}`;
+    $('brkOk').hidden = st.art !== 'jetzt';
+    if (st.art === 'jetzt' && brkGemeldet !== p.key) {
+      brkGemeldet = p.key;
+      // Ton nur, wenn nicht schon der Gong aus erinnerung.js zur selben Zeit kommt
+      let gong = false;
+      try { const s = ERIN.laden(); gong = s.einst.ton && ERIN.ereignisse(now, s).some(e => (e.art === 'ende' || e.art === 'pause') && Math.abs(e.t - p.start) < 60000); } catch (e) {}
+      if (!gong) { initAudio(); beep(); }
+      try { if (desk && desk.aufmerksam) desk.aufmerksam(); } catch (e) {}
+    }
+  }
+  function pauseOk() {
+    if (!brkNow) return;
+    const heute = ERIN.datum(Date.now());
+    okIds = okIds.filter(k => k.startsWith(heute)).concat(brkNow.p.key);
+    try { localStorage.setItem(OK_KEY, JSON.stringify(okIds)); } catch (e) {}
+    tick();
+  }
+  if (ERIN) {
+    $('pzAn').checked = P.an; $('pzVorher').value = P.vorher;
+    $('pzAn').onchange = () => { P.an = $('pzAn').checked; saveP(); tick(); };
+    $('pzVorher').onchange = () => { P.vorher = Math.min(30, Math.max(0, Math.round(+$('pzVorher').value) || 0)); $('pzVorher').value = P.vorher; saveP(); tick(); };
+    $('brkOk').onclick = pauseOk;
+  } else $('pausenBox').hidden = true;
 
   renderList(); tick();
   // Taktgeber im Worker: läuft auch dann sekundengenau, wenn der Tab im Hintergrund liegt
