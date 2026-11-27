@@ -178,6 +178,8 @@
     .now .rest { font-size: 30px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .fachrow { gap: 8px 12px; } .fachrow .fn2 { flex: 1 1 200px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+
   /* Lehrplan & Material */
   .lpgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 22px; }
   .lpgrid ul { margin: 4px 0 0; padding-left: 18px; } .lpgrid li { margin: 2px 0; }
@@ -302,6 +304,7 @@
     s.team = s.team && typeof s.team === 'object' ? s.team : {};
     COLS.forEach(c => { if (!Array.isArray(s.team[c])) s.team[c] = []; });
     s.ui = Object.assign({ fk: {}, todoFilter: 'offen', erinnert: [] }, s.ui || {});
+    if (Array.isArray(s.faecher) && !s.ui.gsErgaenzt) { if (!s.faecher.some(f => f && f.k === 'GS')) s.faecher.push(Object.assign({}, E.EXTRA_VORGABE.find(f => f.k === 'GS'))); s.ui.gsErgaenzt = true; }
     return s;
   }
   let S = laden();
@@ -317,6 +320,7 @@
   const alive = c => S.team[c].filter(x => !x.del);
   function put(c, item, still) {
     item.id = item.id || uid(); item.upd = Date.now(); item.von = S.ich.name || '';
+    privatNachFach(c, item);
     if (!item.autor) item.autor = S.ich.name || '';
     const i = S.team[c].findIndex(x => x.id === item.id);
     if (i >= 0) S.team[c][i] = item; else S.team[c].push(item);
@@ -451,10 +455,10 @@
     side.append(...[
       nav('#/start', '🏠', 'Mein Arbeitsplatz'),
       nav('#/todo', '✅', 'To-do-Liste', ueber ? ueber + ' überfällig' : t.offen.length || '', null, ueber > 0),
-      h('div', { class: 'sec' }, 'Fächer'),
-      E.FAECHER.map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
-      E.alle().some(f => f.extra) ? h('div', { class: 'sec' }, 'Weitere Fächer') : null,
-      E.alle().filter(f => f.extra).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      h('div', { class: 'sec' }, 'Fächer · mit dem Team 👥'),
+      faecherSichtbar().filter(f => geteilt(f.k)).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      faecherSichtbar().some(f => !geteilt(f.k)) ? h('div', { class: 'sec' }, 'Nur für mich 🔒') : null,
+      faecherSichtbar().filter(f => !geteilt(f.k)).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
       h('div', { class: 'sec' }, 'Organisation'),
       nav('#/plan', '🗓', 'Stundenplan & Klingel'),
       nav('#/lehrplan', '📘', 'Lehrplan', alive('lehrplan').filter(x => x.status !== 'fertig').length || ''),
@@ -770,6 +774,7 @@
     let sel = S.ui.fk[k];
     if (!sel || !ks.some(x => norm(x) === norm(sel))) sel = ks[0] || '';
     const w = [h('div', { class: 'crumb' }, '⌂ Fächer › ' + f.name), h('h1', { style: fachC(k) }, f.icon + ' ' + f.name),
+      h('p', { class: 'note' }, geteilt(k) ? '👥 Wird mit deinem Team geteilt.' : '🔒 Nur für dich – das Team sieht dieses Fach nicht.', ' ', h('a', { href: '#/team' }, 'ändern')),
       h('div', { class: 'chips', style: 'padding:0' }, ks.map(x => h('button', { class: 'chip' + (norm(x) === norm(sel) ? ' on' : ''), onclick: () => { S.ui.fk[k] = x; save(true); render(); } }, x)),
         h('button', { class: 'chip', onclick: async () => { const v = await formular('Klasse hinzufügen', [{ k: 'klasse', label: 'Klasse', req: true, ph: 'z. B. 2B' }], {}, { ok: 'Weiter' }); if (v) { S.ui.fk[k] = v.klasse; save(true); stoffDialog(k, v.klasse); } } }, '+ Klasse'))];
     if (sel) w.push(cardStoff(k, sel));
@@ -830,7 +835,7 @@
   function viewKlasse(kl) {
     const w = [h('div', { class: 'crumb' }, '⌂ Meine Klassen › ' + kl), h('h1', null, 'Klasse ' + kl),
       h('p', { class: 'note' }, 'Wo steht jedes Fach in dieser Klasse? So sieht man, ob z. B. Fachrechnen schon die Grundlagen für Elektrotechnik gelegt hat.')];
-    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.alle().map(f => {
+    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.alle().filter(f => sichtbar(f.k)).map(f => {
       const l = stoffVon(f.k, kl); if (!l.length && !S.plan.some(e => e.fach === f.k && norm(e.klasse) === norm(kl))) return null;
       const cur = l.find(x => x.status !== 'fertig'), fertig = l.filter(x => x.status === 'fertig').length;
       const last = alive('log').filter(x => x.fach === f.k && norm(x.klasse) === norm(kl) && x.erg !== 'ignoriert').sort((a, b) => b.datum.localeCompare(a.datum))[0];
@@ -1144,6 +1149,70 @@
         h('button', { class: 'small danger', onclick: () => { E.kalenderEntfernen(); render(); } }, 'Kalender entfernen')) : null);
   }
 
+  // ---------- Fächer: mit dem Team teilen oder nur für mich, anzeigen ----------
+  const cfg = k => E.fachCfg(S, k);
+  const geteilt = k => !k || cfg(k).teilen !== false;
+  let benutztCache = null;
+  function benutzt() {   // Fächer, die irgendwo vorkommen (Stundenplan, WebUntis, Einträge)
+    if (benutztCache) return benutztCache;
+    const set = new Set();
+    S.plan.forEach(e => e.fach && set.add(e.fach));
+    ['stoff', 'lehrplan', 'notizen', 'termine', 'aufgaben', 'log'].forEach(c => alive(c).forEach(x => x.fach && set.add(x.fach)));
+    const k = E.kal(); if (k) k.ev.forEach(e => { if (!e.aus) { const z = E.zuordnung(e, S); if (z.fach) set.add(z.fach); } });
+    return (benutztCache = set);
+  }
+  const sichtbar = k => { const a = cfg(k).anzeigen; return a === 'immer' || (a !== 'aus' && benutzt().has(k)); };
+  const faecherSichtbar = () => E.alle().filter(f => sichtbar(f.k));
+  // Privat-Markierung für neue/geänderte Einträge eines Fachs, das nicht geteilt wird
+  function privatNachFach(c, item) {
+    let k = item.fach;
+    if (c === 'material' && item.lehrplanId) { const u = S.team.lehrplan.find(x => x.id === item.lehrplanId); k = u && u.fach; }
+    if (k && !geteilt(k)) { item.privat = true; item.privatFach = true; if (c === 'aufgaben') item.fuer = ''; }
+  }
+  // Teilen umschalten. Auf „nur für mich“: geteilte Einträge werden für das Team gelöscht und als private Kopie
+  // weitergeführt (sonst bliebe beim Kollegen eine veraltete Kopie). Verweise (Lehrplan → Thema/Material, Thema → Rückmeldung) ziehen mit.
+  function teilenAendern(k, teilen) {
+    const jetzt = Date.now(), neueId = {};
+    const gehoert = (c, x) => c === 'material' ? (S.team.lehrplan.find(u => u.id === x.lehrplanId || u.id === neueId[x.lehrplanId]) || {}).fach === k : x.fach === k;
+    S.faecherCfg = Object.assign({}, S.faecherCfg || {}, { [k]: Object.assign({}, (S.faecherCfg || {})[k] || {}, { teilen }) });
+    let n = 0;
+    ['lehrplan', 'stoff', 'notizen', 'termine', 'aufgaben', 'log', 'material'].forEach(c => {
+      S.team[c].slice().forEach(x => {
+        if (x.del || !gehoert(c, x)) return;
+        if (!teilen && !x.privat) {
+          const kopie = Object.assign({}, x, { id: uid(), upd: jetzt, privat: true, privatFach: true });
+          if (c === 'aufgaben') kopie.fuer = '';
+          if (kopie.lehrplanId && neueId[kopie.lehrplanId]) kopie.lehrplanId = neueId[kopie.lehrplanId];
+          if (kopie.stoffId && neueId[kopie.stoffId]) kopie.stoffId = neueId[kopie.stoffId];
+          neueId[x.id] = kopie.id;
+          const i = S.team[c].indexOf(x);
+          S.team[c][i] = { id: x.id, del: true, upd: jetzt, von: S.ich.name || '' };
+          S.team[c].push(kopie); dirty(c, x.id); dirty(c, kopie.id); n++;
+        } else if (teilen && x.privat && x.privatFach) {
+          const y = Object.assign({}, x, { upd: jetzt }); delete y.privat; delete y.privatFach;
+          S.team[c][S.team[c].indexOf(x)] = y; dirty(c, y.id); n++;
+        }
+      });
+    });
+    // Ansicht-Einstellungen (zuletzt gewähltes Thema usw.) bleiben; gespeichert und abgeglichen wird wie bei jeder Änderung
+    save(); render();
+    E.toast({ art: 'pause', titel: E.fach(k).name, text: (teilen ? 'Wird jetzt mit dem Team geteilt.' : 'Ist jetzt nur für dich.') + (n ? ` ${n} Einträge umgestellt.` : '') });
+  }
+  function cfgSetzen(k, patch) { S.faecherCfg = Object.assign({}, S.faecherCfg || {}, { [k]: Object.assign({}, (S.faecherCfg || {})[k] || {}, patch) }); save(); render(); }
+  function cardFaecher() {
+    const sel = (wert, opts, fn, lab) => h('select', { 'aria-label': lab, value: wert, onchange: ev => fn(ev.target.value) }, opts.map(([v, l]) => h('option', { value: v }, l)));
+    return h('section', { class: 'card' }, h('h2', null, '📚 Meine Fächer', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => fachDialog() }, '+ Fach')),
+      h('p', { class: 'note' }, '„👥 Mit dem Team“: Stoffverteilung, Lehrplan, Material, Notizen und Termine des Fachs sieht das Team. „🔒 Nur für mich“: bleibt privat. „Klassen“: WebUntis-Stunden dieser Klassen gehören automatisch zu diesem Fach (z. B. BG-EM-b → Grundstufe).'),
+      h('div', { class: 'list' }, E.alle().map(f => {
+        const c = cfg(f.k), b = benutzt().has(f.k);
+        return h('div', { class: 'row fachrow' },
+          h('span', { class: 'fn2' }, F(f.k), ' ', f.name, f.extra ? h('button', { class: 'small ghost', 'aria-label': 'Fach bearbeiten', onclick: () => fachDialog(f) }, '✎') : null),
+          sel(c.teilen === false ? 'ich' : 'team', [['team', '👥 Mit dem Team'], ['ich', '🔒 Nur für mich']], v => teilenAendern(f.k, v === 'team'), 'Teilen'),
+          sel(c.anzeigen, [['immer', 'Immer anzeigen'], ['auto', b ? 'Anzeigen (wird verwendet)' : 'Anzeigen, sobald verwendet'], ['aus', 'Ausblenden']], v => cfgSetzen(f.k, { anzeigen: v }), 'Anzeigen'),
+          h('input', { 'aria-label': 'Klassen', placeholder: 'Klassen, z. B. BG-EM-b', value: c.klassen || '', style: 'width:170px', onchange: ev => cfgSetzen(f.k, { klassen: ev.target.value.trim() }) }));
+      })));
+  }
+
   // ---------- Lehrplan & Arbeitsmaterial ----------
   // Lehrplan: Fach → Stufe → Einheiten (Lernfeld/Thema) mit Kompetenzen, Lernzielen, Inhalten, Methoden, Leistungsnachweis.
   // Material: Links (z. B. OneDrive) oder Dateien im privaten Cloud-Speicher, jeweils an einer Einheit.
@@ -1254,7 +1323,7 @@
       if (v) { S.ui.lpStufe[f] = v.stufe; save(true); einheitDialog(f, v.stufe); }
     };
     const w = [h('div', { class: 'crumb' }, '⌂ Lehrplan › ' + E.fach(f).name), h('h1', null, '📘 Lehrplan'),
-      h('div', { class: 'chips', style: 'padding:0' }, E.alle().map(x => h('a', { class: 'chip' + (x.k === f ? ' on' : ''), href: '#/lehrplan/' + x.k, style: fachC(x.k) }, F(x.k), x.name)))];
+      h('div', { class: 'chips', style: 'padding:0' }, E.alle().filter(x => sichtbar(x.k) || x.k === f).map(x => h('a', { class: 'chip' + (x.k === f ? ' on' : ''), href: '#/lehrplan/' + x.k, style: fachC(x.k) }, F(x.k), x.name, geteilt(x.k) ? null : ' 🔒')))];
     w.push(h('div', { class: 'chips', style: 'padding:0' }, sts.map(x => h('button', { class: 'chip' + (norm(x) === norm(st) ? ' on' : ''), onclick: () => setSt(x) }, x)),
       h('button', { class: 'chip', onclick: neueStufe }, '+ Stufe')));
     if (!st) {
@@ -1302,7 +1371,7 @@
     if (!d[c].includes(id)) d[c].push(id);
   }
   function allesDirty() { COLS.forEach(c => S.team[c].forEach(x => dirty(c, x.id))); }
-  const profilTeil = () => ({ ich: S.ich, bell: S.bell, plan: S.plan, aufsicht: S.aufsicht, einst: S.einst, faecher: S.faecher,
+  const profilTeil = () => ({ ich: S.ich, bell: S.bell, plan: S.plan, aufsicht: S.aufsicht, einst: S.einst, faecher: S.faecher, faecherCfg: S.faecherCfg || {},
     icalMap: S.ui.icalMap || {}, icalUrl: S.ui.icalUrl || '' });
   function profilPruefen() {
     if (!angemeldet()) return;
@@ -1317,6 +1386,7 @@
     if (Array.isArray(d.aufsicht)) S.aufsicht = d.aufsicht;
     if (d.einst && typeof d.einst === 'object') S.einst = Object.assign({}, E.DEFAULT_EINST, d.einst);
     if (Array.isArray(d.faecher)) S.faecher = d.faecher;
+    if (d.faecherCfg && typeof d.faecherCfg === 'object') S.faecherCfg = d.faecherCfg;
     if (d.icalMap && typeof d.icalMap === 'object') S.ui.icalMap = d.icalMap;
     if (typeof d.icalUrl === 'string') S.ui.icalUrl = d.icalUrl;
   }
@@ -1634,13 +1704,6 @@
     liste.push({ k: v.k, name: v.name, icon: v.icon || '📘', farbe: v.farbe, ende: v.ende });
     S.faecher = liste; save(true); render();
   }
-  function cardFaecher() {
-    return h('section', { class: 'card' }, h('h2', null, '📚 Fächer', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => fachDialog() }, '+ Fach')),
-      h('p', { class: 'note' }, 'Die fünf KFZ-Fächer sind fest. Weitere Fächer (z. B. Vertretungen) kannst du hier anlegen; das Kürzel hilft beim Erkennen in WebUntis.'),
-      h('div', { class: 'chips', style: 'padding:0' }, E.alle().map(f => f.extra
-        ? h('button', { class: 'chip', style: fachC(f.k), title: 'Bearbeiten', onclick: () => fachDialog(E.alle().find(y => y.k === f.k)) }, F(f.k), f.name, ' ✎')
-        : h('span', { class: 'chip' }, F(f.k), f.name))));
-  }
   // ---------- Als App installieren (PWA) ----------
   let installEvt = null;
   const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -1729,6 +1792,7 @@
 
   // ---------- Rendern ----------
   function render() {
+    benutztCache = null;
     const [r, a] = route();
     renderSide();
     const main = $('main'), y = main.scrollTop;

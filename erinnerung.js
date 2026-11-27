@@ -15,6 +15,7 @@
   // Weitere Fächer, die man selbst anlegen kann (Vorgabe: EDV)
   const EXTRA_VORGABE = [
     { k: 'EDV', name: 'EDV', icon: '💻', farbe: '#a3e635', ende: 'Dateien speichern, Rechner herunterfahren, Plätze aufräumen.' },
+    { k: 'GS', name: 'Grundstufe', icon: '🌱', farbe: '#38bdf8', ende: 'Werkstatt aufräumen, Werkzeug zählen.' },
   ];
   let EXTRA = EXTRA_VORGABE.map(f => Object.assign({}, f));
   const extraOk = f => f && /^[A-Z0-9]{1,5}$/.test(f.k) && !FAECHER.some(b => b.k === f.k) && typeof f.name === 'string' && f.name.trim();
@@ -24,6 +25,18 @@
       farbe: /^#[0-9a-f]{6}$/i.test(f.farbe || '') ? f.farbe : '#94a3b8', ende: String(f.ende || '').slice(0, 120), extra: true }));
   }
   const alle = () => FAECHER.concat(EXTRA);
+  // Einstellungen je Fach: teilen (mit dem Team) und anzeigen ('immer' | 'auto' = nur wenn verwendet | 'aus'),
+  // klassen = Klassen, deren WebUntis-Stunden automatisch zu diesem Fach gehören (z. B. „BG-EM-b“ → Grundstufe)
+  const CFG_VORGABE = {
+    FT: { teilen: true, anzeigen: 'immer' }, ET: { teilen: true, anzeigen: 'immer' }, PX: { teilen: true, anzeigen: 'immer' },
+    FR: { teilen: true, anzeigen: 'auto' }, MK: { teilen: true, anzeigen: 'auto' },
+    EDV: { teilen: false, anzeigen: 'auto' }, GS: { teilen: false, anzeigen: 'auto', klassen: 'BG-EM-b' },
+  };
+  function fachCfg(s, k) {
+    const eigen = s && s.faecherCfg && typeof s.faecherCfg === 'object' ? s.faecherCfg[k] : null;
+    return Object.assign({ teilen: true, anzeigen: 'auto', klassen: '' }, CFG_VORGABE[k] || {}, eigen || {});
+  }
+  const klassenListe = t => String(t || '').split(/[,;\s]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
   const fach = k => alle().find(f => f.k === k) || { k: String(k || ''), name: String(k || '–'), icon: '📘', ende: '', fremd: true };
 
   // Vorlage: jede Zeile gilt für die angehakten Wochentage (1 = Mo … 6 = Sa), wie ein Wecker am Handy
@@ -172,7 +185,10 @@
     const t = e.sum + ' ' + e.besch;
     // Ohne Titel und kurz (oder mit „Aufsicht“): so exportiert WebUntis die Pausenaufsicht
     if (/AUFSICHT/i.test(t) || (!t.trim() && e.e - e.s <= 30 * 6e4)) return { fach: AUFSICHT, klasse: '', fest: false };
-    const f = fachRaten(t), k = klasseRaten(t);
+    const k = klasseRaten(t);
+    // Klasse fest einem Fach zugeordnet (Einstellung „Klassen“ beim Fach)?
+    if (k && s) { const z = alle().find(x => klassenListe(fachCfg(s, x.k).klassen).includes(k.toUpperCase())); if (z) return { fach: z.k, klasse: k, fest: false }; }
+    const f = fachRaten(t);
     // Stunde mit Klasse, aber nicht eigenes Fach (z. B. GK als Vertretung): trotzdem erinnern
     return { fach: f || (k ? VERTRETUNG : ''), klasse: k, fest: false };
   }
@@ -407,6 +423,6 @@
     ausloesen({ id: 'test', art: 'ende', titel: 'Test: Stunde zu Ende', text: 'So sieht und hört sich eine Erinnerung an.' });
   }
 
-  window.Erinnerung = { KEY, FAECHER, VERTRETUNG, AUFSICHT, alle, setExtra, EXTRA_VORGABE, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
+  window.Erinnerung = { KEY, FAECHER, VERTRETUNG, AUFSICHT, alle, fachCfg, klassenListe, setExtra, EXTRA_VORGABE, DEFAULT_BELL, DEFAULT_EINST, fach, laden, tag, ereignisse, jetzt, naechsteStunde, klingel,
     MOFR, vorlage, gilt, kal, icsLesen, icsKey, fachRaten, klasseRaten, zuordnung, kalenderSpeichern, kalenderEntfernen, kalenderSync, blockEnde, label, gleich, norm, hm, uhr, datum, pad, starten, testen, toast, ton, markieren, ausloesen };
 })();
