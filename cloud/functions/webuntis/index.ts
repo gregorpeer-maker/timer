@@ -39,3 +39,5 @@ Deno.serve(async (req) => {
     return antwort(500, 'Fehler auf dem Server: ' + ((e as Error)?.message || e));
   }
 });
+
+// Ende der Datei – wenn diese Zeile beim Einfügen fehlt, ist das egal.

@@ -153,3 +153,5 @@ async function lauf(req) {
   }
   return Response.json({ personen: (d.personen || []).length, gesendet, bericht });
 }
+
+// Ende der Datei – wenn diese Zeile beim Einfügen fehlt, ist das egal.
