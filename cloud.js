@@ -23,6 +23,8 @@
     [/rate limit|too many/i, 'Zu viele Versuche. Bitte kurz warten und noch einmal probieren.'],
     [/signups not allowed|signup is disabled/i, 'Neue Registrierungen sind derzeit abgeschaltet.'],
     [/JWT expired|invalid JWT|bad_jwt/i, 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.'],
+    [/object not found|not_found/i, 'Die Datei gibt es nicht mehr (wurde gelöscht).'],
+    [/resource already exists|duplicate/i, 'Eine Datei mit diesem Namen gibt es schon.'],
   ];
   function meldung(j, status) {
     const roh = j && (j.msg || j.error_description || j.message || j.error) || ('Fehler ' + status);
@@ -117,6 +119,11 @@
       if (!u) throw fehler('Kein Link erhalten.');
       return BASIS + '/storage/v1' + u + (name ? '&download=' + encodeURIComponent(name) : '');
     },
-    dateiLoeschen: pfad => api('/storage/v1/object/material/' + pfad.split('/').map(encodeURIComponent).join('/'), { method: 'DELETE' }),
+    // Löschen wie in der offiziellen Bibliothek: Liste der Pfade im Body (ein leerer Body mit JSON-Typ wird abgelehnt)
+    async dateiLoeschen(pfad) {
+      const j = await api('/storage/v1/object/material', { method: 'DELETE', body: { prefixes: [pfad] } });
+      if (Array.isArray(j) && !j.length) throw fehler('Datei nicht gefunden oder keine Berechtigung.');
+      return j;
+    },
   };
 })();
