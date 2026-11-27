@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unterrichtstimer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+  /* Layout: oben Stundenleiste (Ist-Füllung gegen Uhr-Marke), links der Phasenring, rechts der Stundenplan. */
+  /* Schwarzes Design wie im Arbeitsplatz */
+  :root {
+    --bg: #000000; --panel: #0d0d10; --fg: #f4f4f6; --muted: #8a8a96; --line: #22222a;
+    --accent: #4f8cff; --on-accent: #ffffff;
+    --warn: #ffb020; --on-warn: #1a1000; --crit: #ff5b5b; --good: #34d399;
+    --p1: #4f8cff; --p2: #b18cff; --p3: #2ee6c5; --p4: #ff8a3d; --p5: #ff6fa8;
+    --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f4f7; --panel: #ffffff; --fg: #16202b; --muted: #5b6978; --line: #d3dae2;
+    --accent: #1f6fd6; --warn: #b06a00; --on-warn: #ffffff; --crit: #c92a2a; --good: #19804a;
+    --p1: #2a7de1; --p2: #8257d0; --p3: #0c948a; --p4: #cf7a1f; --p5: #bf3f76; color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px;
+    padding-block: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  button, input { font: inherit; color: var(--fg); }
+  button {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+    padding: 9px 14px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: linear-gradient(135deg, var(--accent), #8b5cf6); border-color: transparent; color: var(--on-accent); font-weight: 600; min-width: 150px; box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent); }
+  button { border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
+  button.danger { border-color: var(--crit); color: var(--crit); }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  input { background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; min-width: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Kopf */
+  .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  .top h1 { font-family: var(--display); font-size: 20px; font-weight: 700; margin: 0; margin-right: auto; }
+  .clock { font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 20px; color: var(--muted); }
+  .chip {
+    font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 17px;
+    padding: 6px 14px; border-radius: 999px; border: 2px solid var(--line); color: var(--muted);
+  }
+  .chip[data-s="good"] { border-color: var(--good); color: var(--good); }
+  .chip[data-s="warn"] { border-color: var(--warn); color: var(--warn); }
+  .chip[data-s="crit"] { border-color: var(--crit); background: var(--crit); color: var(--panel); }
+
+  /* Stundenleiste */
+  .lesson { display: flex; flex-direction: column; gap: 6px; }
+  .bar-wrap { position: relative; padding-top: 16px; }
+  .bar, .names { display: flex; gap: 3px; }
+  .seg { height: 16px; border-radius: 4px; overflow: hidden; min-width: 0;
+         background: color-mix(in srgb, var(--c) 24%, var(--panel)); }
+  .seg i { display: block; height: 100%; width: 0; background: var(--c); }
+  .seg.cur { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .names span { min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .names span.cur { color: var(--fg); font-weight: 600; }
+  .mark { position: absolute; top: 0; bottom: -3px; width: 2px; background: var(--fg); transform: translateX(-1px); }
+  .mark::before {
+    content: "Uhr"; position: absolute; top: -3px; left: 5px; font-size: 11px; line-height: 1;
+    color: var(--fg); font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .mark.flip::before { left: auto; right: 5px; }
+  .endline { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 1.3em; }
+
+  /* Bühne + Plan */
+  .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; flex: 1; }
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 16px; min-width: 0; }
+  .ring-wrap { position: relative; width: min(58vh, 100%); max-width: 100%; aspect-ratio: 1; container-type: inline-size; --pc: var(--accent); }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+  .ring-wrap circle { fill: none; stroke-width: 9; }
+  .track { stroke: var(--line); }
+  .prog { stroke: var(--pc); stroke-linecap: round; transition: stroke .3s; }
+  .ring-wrap.warn .prog { stroke: var(--warn); }
+  .ring-wrap.over .prog { stroke: var(--crit); }
+  .display { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqw; text-align: center; }
+  .pname { font-family: var(--display); font-weight: 700; font-size: 6.2cqw; color: var(--pc); max-width: 68cqw; text-wrap: balance; line-height: 1.1; }
+  .time { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 20cqw; line-height: 1; letter-spacing: -.02em; }
+  .ring-wrap.warn .time { color: var(--warn); }
+  .ring-wrap.over .time { color: var(--crit); }
+  .sub { color: var(--muted); font-size: 3.8cqw; max-width: 66cqw; min-height: 1.3em; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .hint { color: var(--muted); font-size: 12px; text-align: center; }
+  #pipVideo { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+
+  .panel { background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, #fff 2%), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel h2 { font-family: var(--display); font-size: 16px; margin: 0; display: flex; justify-content: space-between; gap: 8px; }
+  .panel h2 span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: grid; grid-template-columns: 12px minmax(0, 1fr) 62px auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 8px; }
+  .row.cur { background: color-mix(in srgb, var(--c) 14%, var(--panel)); }
+  .row.done .nm, .row.done .mn { opacity: .6; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .mn { text-align: right; font-variant-numeric: tabular-nums; }
+  .tools { display: flex; gap: 4px; }
+  .tools button { padding: 5px 8px; line-height: 1; }
+  .meta { grid-column: 2 / -1; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .meta.late { color: var(--crit); }
+  .setup { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .line label { color: var(--muted); }
+  .line input[type="number"] { width: 68px; text-align: right; }
+  .note { font-size: 12px; color: var(--muted); margin: 0; }
+  .line input[type="text"] { flex: 1 1 140px; }
+  .favs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .fav { display: inline-flex; max-width: 100%; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .fav button { border: 0; border-radius: 0; padding: 7px 10px; min-width: 0; }
+  .fav button:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fav button + button { border-left: 1px solid var(--line); color: var(--muted); }
+  .fav button[data-arm] { color: var(--crit); }
+
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .ring-wrap { width: min(58vh, 100%, 420px); }
+  }
+
+  /* Vollbild für den Beamer */
+  body.fs .panel, body.fs .hint, body.fs .top h1 { display: none; }
+  body.fs .grid { grid-template-columns: minmax(0, 1fr); }
+  body.fs .ring-wrap { width: min(70vh, 100%); }
+  body.fs .top { justify-content: space-between; }
+  body.fs .chip { font-size: 24px; padding: 8px 20px; }
+  body.fs .clock { font-size: 26px; }
+  body.fs .names span { font-size: 15px; }
+  body.fs .seg { height: 22px; }
+  body.fs .controls { transition: opacity .4s; }
+  body.fs.idle .controls { opacity: 0; pointer-events: none; }
+  body.fs.idle { cursor: none; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* ---------- Windows-App: nur dort sichtbar ---------- */
+  .deskonly { display: none; }
+  body.desk .deskonly { display: inline-block; }
+  body.desk #pipBtn, body.desk.fs #modeBtn { display: none; }
+  body.desk.fs .top { -webkit-app-region: no-drag; }
+  body.desk:not(.widget) .top { -webkit-app-region: drag; }
+  body.desk:not(.widget) .widgetonly { display: none; }
+
+  /* Pausen-Balken: Vorwarnung, blinkend zum Pausenbeginn, danach Restzeit */
+  .brk {
+    display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; border-radius: 10px;
+    border: 2px solid var(--warn); background: var(--panel); color: var(--warn); text-shadow: none;
+    font-family: var(--display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums;
+  }
+  .brk span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brk[data-art="laeuft"] { border-color: var(--line); color: var(--fg); }
+  .brk[data-art="jetzt"] { background: var(--warn); color: var(--on-warn); animation: brk-blink 1s steps(1, end) infinite; }
+  .brk button { padding: 4px 16px; font-weight: 700; background: var(--bg); color: var(--fg); border-color: var(--bg); }
+  @keyframes brk-blink { 50% { background: var(--panel); color: var(--warn); } }
+  body.fs .brk { font-size: 30px; }
+  .pausen { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .chk { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
+  .chk input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  /* Mini-Ansicht: alle Maße in rem, 1rem = Fensterbreite / 34 */
+  html.widget { font-size: calc(100vw / 34); background: transparent; }
+  body.widget {
+    background: color-mix(in srgb, var(--bg) calc(var(--wa, .6) * 100%), transparent);
+    height: 100vh; padding: 1rem; gap: .6rem; overflow: hidden; border-radius: 1.2rem; font-size: 1.3rem;
+    text-shadow: 0 0 .35rem var(--bg), 0 0 .35rem var(--bg), 0 0 .12rem var(--bg);
+    -webkit-app-region: drag; user-select: none;
+  }
+  body.widget button, body.widget input { -webkit-app-region: no-drag; text-shadow: none; }
+  body.widget h1, body.widget .names, body.widget .endline, body.widget .panel, body.widget .hint,
+  body.widget .ring-wrap svg, body.widget .sub, body.widget #resetBtn, body.widget .mark::before { display: none; }
+  body.widget .top { gap: .5rem; justify-content: space-between; flex-wrap: nowrap; }
+  body.widget .clock { font-size: 1.6rem; color: var(--fg); }
+  body.widget .chip { font-size: 1.5rem; padding: .15rem .9rem; border-width: .15rem; text-shadow: none; background: var(--bg); white-space: nowrap; }
+  body.widget .chip[data-s="crit"] { background: var(--crit); }
+  body.widget .bar-wrap { padding-top: 0; }
+  body.widget .seg { height: .9rem; border-radius: .3rem; }
+  body.widget .seg.cur { outline-width: .15rem; }
+  body.widget .mark { top: -.3rem; bottom: -.3rem; width: .25rem; }
+  body.widget .grid { display: block; flex: 1; }
+  body.widget .stage { gap: .5rem; }
+  body.widget .ring-wrap { width: 100%; aspect-ratio: auto; container-type: normal; }
+  body.widget .display { position: static; gap: 0; }
+  body.widget .pname { font-size: 1.9rem; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.widget .time { font-size: 8.4rem; }
+  body.widget .controls { gap: .4rem; }
+  body.widget button { padding: .35rem .8rem; border-radius: .6rem; font-size: 1.25rem; min-width: 0; border-width: .1rem; }
+  body.widget #alpha { width: 7rem; padding: 0; border: 0; background: none; accent-color: var(--accent); vertical-align: middle; }
+  body.widget .brk { font-size: 1.5rem; padding: .25rem .7rem; gap: .6rem; border-width: .15rem; border-radius: .6rem; }
+  body.widget .brk button { padding: .15rem .9rem; font-size: 1.3rem; }
+  body.widget.hasbrk .lesson { display: none; }
+  body.widget .brk[data-art="jetzt"] { animation: none; }   /* im Mini-Fenster blinkt das ganze Fenster, der Balken bleibt gelb */
+  body.widget.brkalert { box-shadow: inset 0 0 0 .3rem var(--warn); animation: brk-fenster 1s steps(1, end) infinite; }
+  @keyframes brk-fenster { 50% { background: color-mix(in srgb, var(--warn) 45%, var(--bg)); } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Unterrichtstimer</h1>
+  <span class="clock" id="clock" title="Aktuelle Uhrzeit">--:--</span>
+  <span class="chip" id="chip" role="status">Bereit</span>
+</header>
+
+<div class="brk" id="brk" hidden>
+  <span id="brkTxt"></span>
+  <button id="brkOk" title="Pause gesehen – Blinken beenden" hidden>OK</button>
+</div>
+
+<section class="lesson" aria-label="Verlauf der Stunde">
+  <div class="bar-wrap">
+    <div class="bar" id="bar"></div>
+    <div class="mark" id="mark" hidden></div>
+  </div>
+  <div class="names" id="names"></div>
+  <div class="endline" id="endline"></div>
+</section>
+
+<main class="grid">
+  <section class="stage">
+    <div class="ring-wrap" id="wrap">
+      <svg viewBox="0 0 220 220" aria-hidden="true">
+        <circle class="track" cx="110" cy="110" r="100"/>
+        <circle class="prog" id="prog" cx="110" cy="110" r="100"/>
+      </svg>
+      <div class="display">
+        <div class="pname" id="pname"></div>
+        <div class="time" id="time">00:00</div>
+        <div class="sub" id="sub"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="prevBtn" title="Zurück zur vorigen Phase (←)">← Zurück</button>
+      <button class="primary" id="startBtn">Stunde starten</button>
+      <button id="nextBtn" title="Nächste Phase (→ oder N)">Nächste Phase →</button>
+      <button id="plusBtn" title="Laufende Phase um 1 Minute verlängern">+1 Min</button>
+      <button id="fitBtn" hidden></button>
+      <button id="resetBtn">Zurücksetzen</button>
+      <button id="fsBtn">Vollbild</button>
+      <button id="modeBtn" class="deskonly"></button>
+      <button id="sizeBtn" class="deskonly widgetonly" title="Fenstergröße wechseln">Größe</button>
+      <input id="alpha" class="deskonly widgetonly" type="range" min="0" max="100" step="5" value="60" title="Hintergrund: links durchsichtig, rechts deckend" aria-label="Deckkraft des Hintergrunds">
+      <button id="quitBtn" class="deskonly" title="Timer schließen (der Arbeitsplatz bleibt offen)">✕</button>
+      <button id="pipBtn" title="Kleines Fenster, das über allen Programmen bleibt (M)">Mini-Fenster</button>
+    </div>
+    <div class="hint" id="pipNote" hidden></div>
+    <canvas id="pipCanvas" width="960" height="540" hidden></canvas>
+    <video id="pipVideo" muted playsinline aria-hidden="true" tabindex="-1"></video>
+    <div class="hint">Leertaste = Start/Pause · → oder N = nächste Phase · ← = zurück · F = Vollbild · M = Mini-Fenster · R = Zurücksetzen</div>
+  </section>
+
+  <section class="panel">
+    <h2>Stundenplan <span id="total"></span></h2>
+    <div class="rows" id="rows"></div>
+    <div class="setup" id="setup">
+      <div class="line">
+        <label for="favName">Favorit</label>
+        <input id="favName" type="text" maxlength="40" placeholder="Name, z. B. 3A Elektrotechnik">
+        <button id="favSave" title="Aktuellen Stundenplan unter diesem Namen speichern">★ Speichern</button>
+      </div>
+      <div class="favs" id="favs"></div>
+      <div class="line">
+        <button id="addBtn">+ Phase</button>
+        <button id="soundBtn" class="on">Ton: an</button>
+      </div>
+      <div class="line">
+        <label for="tplMin">Vorlage für</label>
+        <input id="tplMin" type="number" min="1" max="300" value="50"> Min
+        <button id="avivaBtn">AVIVA-Stunde</button>
+        <button id="singleBtn">Einzelner Timer</button>
+      </div>
+      <div class="line">
+        <label for="endClock">Stundenende um</label>
+        <input id="endClock" type="time">
+        <button id="endBell" title="Ende der laufenden (oder nächsten) Stunde aus dem Stundenplan im Arbeitsplatz übernehmen">🔔 Klingel</button>
+        <button id="endClear">Leeren</button>
+      </div>
+      <div class="line">
+        <button id="wsBtn" title="Arbeitsplatz mit Stundenplan, Stoffverteilung, To-dos und Team öffnen">🏠 Arbeitsplatz</button>
+        <span class="note" id="bellNote"></span>
+      </div>
+      <div class="pausen" id="pausenBox">
+        <div class="line">
+          <label class="chk"><input id="pzAn" type="checkbox" checked> Pausen im Fenster anzeigen</label>
+          <label for="pzVorher">Vorwarnung</label>
+          <input id="pzVorher" type="number" min="0" max="30" value="5"> Min
+        </div>
+        <p class="note" id="pzListe"></p>
+      </div>
+      <p class="note">Ohne Uhrzeit endet die Stunde nach der Plandauer ab Start. Mit Uhrzeit zählt die Klingel: wer spät startet, ist sofort im Verzug. Pausen laufen gegen die Uhr und erzeugen ebenfalls Verzug.</p>
+    </div>
+  </section>
+</main>
+
+<script src="erinnerung.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = 'unterrichtstimer.v1';
+  const AVIVA = [['Ankommen', 10], ['Vorwissen aktivieren', 15], ['Informieren', 25], ['Verarbeiten', 35], ['Auswerten', 15]];
+  const C = 2 * Math.PI * 100;
+  const prog = $('prog'), wrap = $('wrap');
+  prog.style.strokeDasharray = C;
+
+  function avivaPlan(min) {
+    const raw = AVIVA.map(a => a[1] * min / 100), fl = raw.map(Math.floor);
+    let rest = min - fl.reduce((a, b) => a + b, 0);
+    raw.map((r, i) => [r - fl[i], r, i]).sort((a, b) => b[0] - a[0] || b[1] - a[1])
+      .forEach(([, , i]) => { if (rest > 0) { fl[i]++; rest--; } });
+    return AVIVA.map((a, i) => ({ name: a[0], sec: fl[i] * 60 }));
+  }
+
+  // status: idle | running | paused | finished
+  let S = { phases: avivaPlan(50), orig: null, status: 'idle', idx: 0, acc: 0, runAt: null,
+            start: null, target: null, endAt: null, actual: [], beeped: false, sound: true, endClock: '' };
+  try {
+    const j = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (j && Array.isArray(j.phases) && j.phases.length && j.phases.every(p => p && typeof p.name === 'string' && p.sec > 0)) {
+      S = Object.assign(S, j);
+      if (S.idx >= S.phases.length) { S.idx = 0; S.status = 'idle'; }
+    }
+  } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+  const pad = n => String(n).padStart(2, '0');
+  function fmt(ms, ceil) {
+    const s = Math.max(0, ceil ? Math.ceil(ms / 1000) : Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return h ? `${h}:${pad(m)}:${pad(x)}` : `${pad(m)}:${pad(x)}`;
+  }
+  const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const minTxt = sec => (Math.round(sec / 6) / 10).toString().replace('.', ',') + ' Min';
+  const totalSec = () => S.phases.reduce((a, p) => a + p.sec, 0);
+  const wdg = () => document.body.classList.contains('widget');
+  const active = () => S.status === 'running' || S.status === 'paused';
+  const elapsed = now => S.acc + (S.status === 'running' ? now - S.runAt : 0);
+  const futureMs = () => S.phases.slice(S.idx + 1).reduce((a, p) => a + p.sec, 0) * 1000;
+  // Verzug = voraussichtliches Ende minus Soll-Ende
+  const needed = now => Math.max(0, S.phases[S.idx].sec * 1000 - elapsed(now)) + futureMs();
+  function clockTarget(now) {
+    if (!/^\d\d:\d\d$/.test(S.endClock || '')) return null;
+    const d = new Date(now); d.setHours(+S.endClock.slice(0, 2), +S.endClock.slice(3), 0, 0);
+    return d.getTime() > now ? d.getTime() : null;
+  }
+
+  // ---------- Aktionen ----------
+  function start() {
+    const now = Date.now();
+    initAudio(); wakeLock();
+    if (S.status === 'finished') { reset(true); return; }
+    if (S.status === 'idle') {
+      S.orig = S.phases.map(p => ({ ...p }));
+      S.start = now; S.target = clockTarget(now) || now + totalSec() * 1000;
+      S.idx = 0; S.acc = 0; S.actual = []; S.beeped = false; S.endAt = null;
+    }
+    S.status = 'running'; S.runAt = now;
+    save(); renderList(); tick();
+  }
+  function pause() {
+    S.acc = elapsed(Date.now()); S.runAt = null; S.status = 'paused';
+    save(); tick();
+  }
+  function toggle() { S.status === 'running' ? pause() : start(); }
+  function next() {
+    if (!active()) return;
+    const now = Date.now();
+    S.actual[S.idx] = elapsed(now);
+    if (S.idx >= S.phases.length - 1) { S.status = 'finished'; S.endAt = now; S.runAt = null; }
+    else { S.idx++; S.acc = 0; S.beeped = false; if (S.status === 'running') S.runAt = now; }
+    save(); renderList(); tick();
+  }
+  function prev() {   // macht "Nächste Phase" rückgängig: die Zeit läuft in der vorigen Phase weiter
+    if (!active() || S.idx === 0) return;
+    const now = Date.now(), here = elapsed(now);
+    S.idx--; S.acc = (S.actual[S.idx] || 0) + here; S.actual.length = S.idx;
+    S.beeped = S.acc >= S.phases[S.idx].sec * 1000;
+    if (S.status === 'running') S.runAt = now;
+    save(); renderList(); tick();
+  }
+  function plus() {
+    if (!active()) return;
+    S.phases[S.idx].sec += 60; S.beeped = false;
+    save(); renderList(); tick();
+  }
+  function fit() {    // Restphasen so stauchen/strecken, dass die Stunde zum Soll-Ende aufgeht
+    if (!active()) return;
+    const now = Date.now(), avail = S.target - now, pe = elapsed(now);
+    const cur = S.phases[S.idx], r = Math.max(0, cur.sec * 1000 - pe), n = r + futureMs();
+    if (avail <= 0 || n <= 0) return;
+    const f = avail / n;
+    cur.sec = Math.max(1, Math.round((pe + r * f) / 1000));
+    for (let i = S.idx + 1; i < S.phases.length; i++) S.phases[i].sec = Math.max(10, Math.round(S.phases[i].sec * f));
+    save(); renderList(); tick();
+  }
+  let armed = null;
+  function reset(force) {
+    if (!force && S.status !== 'idle' && !armed) {
+      $('resetBtn').textContent = 'Wirklich zurücksetzen?'; $('resetBtn').classList.add('danger');
+      armed = setTimeout(disarm, 3000); return;
+    }
+    disarm();
+    if (S.orig) S.phases = S.orig.map(p => ({ ...p }));
+    Object.assign(S, { orig: null, status: 'idle', idx: 0, acc: 0, runAt: null, start: null, target: null, endAt: null, actual: [], beeped: false });
+    save(); renderList(); tick();
+  }
+  function disarm() { clearTimeout(armed); armed = null; $('resetBtn').textContent = 'Zurücksetzen'; $('resetBtn').classList.remove('danger'); }
+
+  // ---------- Plan-Editor ----------
+  let refs = [];
+  function renderList() {
+    const rows = $('rows'), bar = $('bar'), names = $('names'), idle = S.status === 'idle';
+    rows.textContent = ''; bar.textContent = ''; names.textContent = ''; refs = [];
+    S.phases.forEach((p, i) => {
+      const c = `var(--p${i % 5 + 1})`;
+      const done = S.status === 'finished' || (active() && i < S.idx), cur = active() && i === S.idx;
+      const row = document.createElement('div');
+      row.className = 'row' + (done ? ' done' : '') + (cur ? ' cur' : ''); row.style.setProperty('--c', c);
+      const dot = document.createElement('span'); dot.className = 'dot';
+      const nm = document.createElement('input'); nm.className = 'nm'; nm.id = 'ph-name-' + i; nm.value = p.name;
+      nm.setAttribute('aria-label', 'Name Phase ' + (i + 1)); nm.disabled = done;
+      nm.onchange = () => { p.name = nm.value.trim() || 'Phase ' + (i + 1); save(); renderList(); tick(); };
+      const mn = document.createElement('input'); mn.className = 'mn'; mn.id = 'ph-min-' + i; mn.type = 'number';
+      mn.min = '0.5'; mn.step = 'any'; mn.value = Math.round(p.sec / 6) / 10; mn.disabled = done;
+      mn.setAttribute('aria-label', 'Minuten Phase ' + (i + 1)); mn.title = 'Minuten';
+      mn.onchange = () => {
+        const v = parseFloat(mn.value);
+        if (v > 0) { p.sec = Math.max(10, Math.round(v * 60)); if (cur) S.beeped = false; save(); }
+        renderList(); tick();
+      };
+      const tools = document.createElement('div'); tools.className = 'tools';
+      [['↑', 'Nach oben', () => move(i, -1), i === 0], ['↓', 'Nach unten', () => move(i, 1), i === S.phases.length - 1],
+       ['✕', 'Phase löschen', () => del(i), S.phases.length === 1]].forEach(([t, lab, fn, off]) => {
+        const b = document.createElement('button'); b.textContent = t; b.title = lab; b.setAttribute('aria-label', lab);
+        b.disabled = off || !idle; b.onclick = fn; tools.appendChild(b);
+      });
+      const meta = document.createElement('div'); meta.className = 'meta';
+      if (done && S.actual[i] != null) {
+        const d = S.actual[i] - p.sec * 1000;
+        meta.textContent = `gebraucht ${fmt(S.actual[i])} · ` + (Math.abs(d) < 5000 ? 'im Plan' : d > 0 ? `${fmt(d)} länger` : `${fmt(-d)} kürzer`);
+        if (d >= 5000) meta.classList.add('late');
+      }
+      row.append(dot, nm, mn, tools, meta); rows.appendChild(row);
+
+      const seg = document.createElement('div'); seg.className = 'seg' + (cur ? ' cur' : '');
+      seg.style.setProperty('--c', c); seg.style.flex = p.sec + ' 0 0'; seg.title = `${p.name} · ${minTxt(p.sec)}`;
+      const fill = document.createElement('i'); seg.appendChild(fill); bar.appendChild(seg);
+      const lab = document.createElement('span'); lab.className = cur ? 'cur' : ''; lab.style.flex = p.sec + ' 0 0';
+      lab.textContent = p.name; names.appendChild(lab);
+      refs.push({ meta, fill });
+    });
+    $('total').textContent = minTxt(totalSec());
+    $('addBtn').disabled = $('avivaBtn').disabled = $('singleBtn').disabled = !idle;
+    $('endClock').disabled = $('endClear').disabled = !idle;
+    $('endClock').value = S.endClock || '';
+    $('soundBtn').textContent = 'Ton: ' + (S.sound ? 'an' : 'aus'); $('soundBtn').classList.toggle('on', S.sound);
+    renderFavs();
+  }
+  // ---------- Favoriten: gespeicherte Stundenpläne ----------
+  const FKEY = 'unterrichtstimer.favs';
+  let favs = [];
+  try {
+    const j = JSON.parse(localStorage.getItem(FKEY) || '[]');
+    if (Array.isArray(j)) favs = j.filter(f => f && typeof f.name === 'string' && Array.isArray(f.phases) && f.phases.length
+      && f.phases.every(p => p && typeof p.name === 'string' && p.sec > 0));
+  } catch (e) {}
+  const saveFavs = () => { try { localStorage.setItem(FKEY, JSON.stringify(favs)); } catch (e) {} };
+  function renderFavs() {
+    const box = $('favs'); box.textContent = '';
+    if (!favs.length) {
+      const n = document.createElement('p'); n.className = 'note';
+      n.textContent = 'Noch keine Favoriten. Stundenplan einstellen, Namen eingeben und speichern.'; box.appendChild(n); return;
+    }
+    favs.forEach((f, i) => {
+      const w = document.createElement('span'); w.className = 'fav';
+      const load = document.createElement('button'), del = document.createElement('button');
+      load.textContent = f.name; load.disabled = S.status !== 'idle';
+      load.title = `${minTxt(f.phases.reduce((a, p) => a + p.sec, 0))} · ${f.phases.length} ${f.phases.length === 1 ? 'Phase' : 'Phasen'}`
+        + (f.endClock ? ` · Ende ${f.endClock}` : '') + (load.disabled ? ' – laden erst nach dem Zurücksetzen' : ' – laden');
+      load.onclick = () => {
+        S.phases = f.phases.map(p => ({ name: p.name, sec: p.sec })); S.endClock = f.endClock || '';
+        $('favName').value = f.name; save(); renderList(); tick();
+      };
+      del.textContent = '✕'; del.title = 'Favorit löschen'; del.setAttribute('aria-label', 'Favorit ' + f.name + ' löschen');
+      del.onclick = () => {
+        if (del.dataset.arm) { favs.splice(i, 1); saveFavs(); renderFavs(); return; }
+        del.dataset.arm = '1'; del.textContent = 'Löschen?';
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.arm; del.textContent = '✕'; } }, 3000);
+      };
+      w.append(load, del); box.appendChild(w);
+    });
+  }
+  function saveFav() {
+    const name = $('favName').value.trim();
+    if (!name) { $('favName').focus(); return; }
+    const fav = { name, phases: (S.orig || S.phases).map(p => ({ name: p.name, sec: p.sec })), endClock: S.endClock || '' };
+    const i = favs.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
+    if (i >= 0) favs[i] = fav; else favs.push(fav);
+    saveFavs(); renderFavs();
+    $('favSave').textContent = '★ Gespeichert'; setTimeout(() => { $('favSave').textContent = '★ Speichern'; }, 1500);
+  }
+
+  function move(i, d) { const j = i + d; [S.phases[i], S.phases[j]] = [S.phases[j], S.phases[i]]; save(); renderList(); tick(); }
+  function del(i) { S.phases.splice(i, 1); save(); renderList(); tick(); }
+
+  // ---------- Anzeige ----------
+  function chip(delay, prefix) {
+    const el = $('chip'), a = Math.abs(delay);
+    if (a < 30000) { el.dataset.s = 'good'; el.textContent = (prefix || '') + 'Im Plan'; }
+    else if (delay > 0) { el.dataset.s = delay >= 180000 ? 'crit' : 'warn'; el.textContent = (prefix || '') + 'Verzug +' + fmt(delay); }
+    else { el.dataset.s = 'good'; el.textContent = (prefix || '') + 'Vorsprung ' + fmt(a); }
+  }
+  function tick() {
+    const now = Date.now(), st = S.status, cur = S.phases[S.idx], pe = elapsed(now);
+    const planMs = cur.sec * 1000, rem = planMs - pe, last = S.idx === S.phases.length - 1;
+    $('clock').textContent = hhmm(now);
+    wrap.style.setProperty('--pc', `var(--p${S.idx % 5 + 1})`);
+    let frac = 1, over = false, warn = false;
+
+    if (st === 'idle') {
+      $('pname').textContent = cur.name; $('time').textContent = fmt(planMs, true);
+      $('sub').textContent = S.phases.length > 1 ? `Bereit · ${S.phases.length} Phasen` : 'Bereit';
+      const t = clockTarget(now), tot = totalSec() * 1000;
+      if (t) { chip(now + tot - t, 'Start jetzt: '); $('endline').textContent = `Plan ${minTxt(tot / 1000)} · bis ${hhmm(t)} bleiben ${minTxt((t - now) / 1000)}`; }
+      else { $('chip').dataset.s = ''; $('chip').textContent = 'Bereit'; $('endline').textContent = `Plan ${minTxt(tot / 1000)} · bei Start jetzt Ende um ${hhmm(now + tot)}`; }
+      $('mark').hidden = true;
+    } else if (st === 'finished') {
+      $('pname').textContent = 'Stunde beendet'; $('time').textContent = fmt(S.endAt - S.start);
+      $('sub').textContent = 'Gesamtdauer'; frac = 0;
+      chip(S.endAt - S.target, 'Ende: ');
+      $('endline').textContent = `Soll-Ende ${hhmm(S.target)} · tatsächlich ${hhmm(S.endAt)}`;
+      $('mark').hidden = true;
+    } else {
+      over = rem <= 0; warn = !over && (rem <= 60000 || rem / planMs <= 0.1);
+      frac = over ? 0 : rem / planMs;
+      $('pname').textContent = cur.name;
+      $('time').textContent = over ? '+' + fmt(-rem) : fmt(rem, true);
+      $('sub').textContent = st === 'paused' ? 'Pausiert – die Uhr läuft weiter'
+        : over ? 'Überzogen' : last ? 'Letzte Phase' : 'Danach: ' + S.phases[S.idx + 1].name;
+      const nd = needed(now), delay = now + nd - S.target;
+      chip(delay);
+      $('endline').textContent = `Soll-Ende ${hhmm(S.target)} · voraussichtlich ${hhmm(now + nd)} · noch ${minTxt(Math.max(0, S.target - now) / 1000)} bis Stundenende`;
+      const m = $('mark'), pos = Math.min(1, Math.max(0, (now - S.start) / (S.target - S.start)));
+      m.hidden = false; m.style.left = (pos * 100) + '%'; m.classList.toggle('flip', pos > 0.9);
+      if (refs[S.idx]) {
+        refs[S.idx].meta.textContent = `läuft ${fmt(pe)} von ${fmt(planMs)}` + (over ? ` · ${fmt(-rem)} überzogen` : '');
+        refs[S.idx].meta.classList.toggle('late', over);
+      }
+      const fb = $('fitBtn'), show = Math.abs(delay) >= 30000;
+      fb.hidden = !show;
+      if (show) {
+        fb.textContent = wdg() ? (delay > 0 ? 'Aufholen' : 'Strecken') : delay > 0 ? 'Verzug aufholen' : 'Vorsprung verteilen';
+        fb.title = delay > 0 ? 'Kürzt die restlichen Phasen anteilig, sodass die Stunde zum Soll-Ende aufgeht'
+                             : 'Verlängert die restlichen Phasen anteilig bis zum Soll-Ende';
+        fb.disabled = S.target - now <= 0;
+      }
+      if (over && !S.beeped && st === 'running') { S.beeped = true; save(); beep(); }
+    }
+    if (!active()) $('fitBtn').hidden = true;
+    refs.forEach((r, i) => {
+      const f = st === 'finished' ? 1 : !active() ? 0 : i < S.idx ? 1 : i > S.idx ? 0 : Math.min(1, pe / planMs);
+      r.fill.style.width = (f * 100) + '%';
+    });
+    prog.style.strokeDashoffset = C * (1 - frac);
+    wrap.classList.toggle('over', over); wrap.classList.toggle('warn', warn);
+    const w = wdg();
+    $('startBtn').textContent = st === 'idle' ? (S.phases.length > 1 && !w ? 'Stunde starten' : 'Start') : st === 'running' ? 'Pause' : st === 'paused' ? 'Weiter' : w ? 'Neu' : 'Neue Stunde';
+    $('nextBtn').textContent = w ? (last ? 'Ende' : '›') : last ? 'Stunde beenden' : 'Nächste Phase →';
+    $('prevBtn').textContent = w ? '‹' : '← Zurück';
+    $('plusBtn').textContent = w ? '+1' : '+1 Min';
+    $('nextBtn').disabled = $('plusBtn').disabled = !active();
+    $('prevBtn').disabled = !active() || S.idx === 0;
+    $('resetBtn').disabled = st === 'idle';
+    pausenZeigen(now);
+    if (pipOn) drawPip();
+    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = st === 'running' ? 'playing' : 'paused'; } catch (e) {}
+    document.title = active() ? `${st === 'running' ? '▶ ' : '⏸ '}${$('time').textContent} ${cur.name}` : 'Unterrichtstimer';
+  }
+
+  // ---------- Ton, Wake Lock, Vollbild ----------
+  let audioCtx = null;
+  function initAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+  }
+  function beep() {
+    if (!S.sound || !audioCtx) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      for (let i = 0; i < 2; i++) [0, 0.18].forEach((d, j) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = t0 + i * 0.7 + d;
+        o.type = 'sine'; o.frequency.value = j ? 1100 : 880;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + 0.18);
+      });
+    } catch (e) {}
+  }
+  function wakeLock() { try { navigator.wakeLock?.request('screen').catch(() => {}); } catch (e) {} }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) wakeLock(); });
+
+  let idleTimer = null;
+  function wake() {
+    document.body.classList.remove('idle'); clearTimeout(idleTimer);
+    if (document.body.classList.contains('fs')) idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
+  }
+  function setFs(on) { document.body.classList.toggle('fs', on); $('fsBtn').textContent = on ? 'Vollbild beenden' : 'Vollbild'; wake(); }
+  let deskFs = null;   // in der Windows-App: Vollbild über das Programmfenster
+  function toggleFs() {
+    if (deskFs) return deskFs();
+    const on = !document.body.classList.contains('fs'); setFs(on);
+    try {
+      if (on && !document.fullscreenElement) { const p = document.documentElement.requestFullscreen?.(); p && p.catch && p.catch(() => {}); }
+      else if (!on && document.fullscreenElement) { const p = document.exitFullscreen(); p && p.catch && p.catch(() => {}); }
+    } catch (e) {}
+  }
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setFs(false); });
+  ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, wake, { passive: true }));
+
+  // ---------- Mini-Fenster (Bild-in-Bild, bleibt über anderen Programmen) ----------
+  const pc = $('pipCanvas'), pv = $('pipVideo');
+  let pipOn = false, pctx = null;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function drawPip() {
+    if (!pctx) pctx = pc.getContext('2d');
+    const g = pctx, W = pc.width, H = pc.height, F = '"Space Grotesk", "Segoe UI", system-ui, sans-serif';
+    const tone = wrap.classList.contains('over') ? '--crit' : wrap.classList.contains('warn') ? '--warn' : '--fg';
+    g.globalAlpha = 1; g.fillStyle = css('--bg'); g.fillRect(0, 0, W, H);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = css(`--p${S.idx % 5 + 1}`); g.font = '700 58px ' + F;
+    g.fillText($('pname').textContent, W / 2, 70, W - 80);
+    g.fillStyle = css(tone); g.font = '700 250px ' + F;
+    g.fillText($('time').textContent, W / 2, 245, W - 80);
+    if (brkNow) {   // Pause statt Verzug anzeigen, zum Pausenbeginn blinkend
+      const an = brkNow.art === 'jetzt' && Math.floor(Date.now() / 500) % 2 === 0;
+      if (an) { g.fillStyle = css('--warn'); g.fillRect(24, 362, W - 48, 96); }
+      g.fillStyle = css(an ? '--on-warn' : brkNow.art === 'laeuft' ? '--fg' : '--warn'); g.font = '700 56px ' + F;
+      g.fillText($('brkTxt').textContent, W / 2, 410, W - 80);
+    } else {
+      const s = $('chip').dataset.s;
+      g.fillStyle = css(s === 'crit' ? '--crit' : s === 'warn' ? '--warn' : s === 'good' ? '--good' : '--muted');
+      g.font = '700 62px ' + F;
+      g.fillText($('chip').textContent, W / 2, 410, W - 80);
+    }
+    const bw = W - 80, tot = totalSec(), y = H - 62, h = 24; let x = 40;
+    S.phases.forEach((p, i) => {
+      const w = bw * p.sec / tot, f = parseFloat(refs[i] && refs[i].fill.style.width) || 0;
+      g.fillStyle = css(`--p${i % 5 + 1}`);
+      g.globalAlpha = .28; g.fillRect(x, y, Math.max(1, w - 4), h);
+      g.globalAlpha = 1; g.fillRect(x, y, Math.max(0, (w - 4) * f / 100), h);
+      x += w;
+    });
+    if (!$('mark').hidden) { g.fillStyle = css('--fg'); g.fillRect(40 + bw * (parseFloat($('mark').style.left) || 0) / 100 - 2, y - 12, 4, h + 24); }
+  }
+  function pipNote(t) { $('pipNote').textContent = t; $('pipNote').hidden = !t; }
+  const pipOk = !!(document.pictureInPictureEnabled && pv.requestPictureInPicture && pc.captureStream);
+  if (!pipOk) { $('pipBtn').disabled = true; $('pipBtn').title = 'Dieser Browser erlaubt hier kein Mini-Fenster. Es funktioniert in Chrome oder Edge am Computer.'; }
+  async function togglePip() {
+    if (!pipOk) return;
+    if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(() => {}); return; }
+    try {
+      drawPip();
+      if (!pv.srcObject) pv.srcObject = pc.captureStream(5);
+      await pv.play();
+      await pv.requestPictureInPicture();
+      pipNote('');
+    } catch (e) { pipNote('Das Mini-Fenster wurde vom Browser abgelehnt. Öffne den Timer in Chrome oder Edge am Computer.'); }
+  }
+  pv.addEventListener('enterpictureinpicture', () => { pipOn = true; $('pipBtn').textContent = 'Mini-Fenster schließen'; drawPip(); });
+  pv.addEventListener('leavepictureinpicture', () => { pipOn = false; $('pipBtn').textContent = 'Mini-Fenster'; pv.pause(); });
+  pv.addEventListener('pause', () => { if (pipOn) pv.play().catch(() => {}); });
+  try {   // Knöpfe im Mini-Fenster: Start/Pause, nächste und vorige Phase
+    const ms = navigator.mediaSession;
+    ms.setActionHandler('play', toggle); ms.setActionHandler('pause', toggle);
+    ms.setActionHandler('nexttrack', next); ms.setActionHandler('previoustrack', prev);
+  } catch (e) {}
+  $('pipBtn').onclick = togglePip;
+
+  // ---------- Windows-App: Mini-Ansicht mit durchsichtigem Hintergrund ----------
+  const desk = window.desk;
+  if (desk) {
+    document.body.classList.add('desk');
+    const get = (k, d) => { try { const v = localStorage.getItem('desk.' + k); return v === null ? d : v; } catch (e) { return d; } };
+    const put = (k, v) => { try { localStorage.setItem('desk.' + k, v); } catch (e) {} };
+    let mode = get('mode', 'widget') === 'plan' ? 'plan' : 'widget', size = Math.min(2, Math.max(0, +get('size', 1) || 0));
+    const applyAlpha = () => document.body.style.setProperty('--wa', $('alpha').value / 100);
+    function applyMode() {
+      const w = mode === 'widget';
+      document.documentElement.classList.toggle('widget', w); document.body.classList.toggle('widget', w);
+      $('modeBtn').textContent = w ? 'Planen' : 'Mini-Ansicht';
+      $('modeBtn').title = w ? 'Großes Fenster zum Bearbeiten des Stundenplans' : 'Kleines durchsichtiges Fenster über allen Programmen';
+      desk.setMode(mode, size); tick();
+    }
+    $('alpha').value = get('alpha', 60); applyAlpha();
+    $('alpha').oninput = () => { applyAlpha(); put('alpha', $('alpha').value); };
+    $('modeBtn').onclick = () => { mode = mode === 'widget' ? 'plan' : 'widget'; put('mode', mode); applyMode(); };
+    $('sizeBtn').onclick = () => { size = (size + 1) % 3; put('size', size); desk.setMode(mode, size); };
+    $('quitBtn').onclick = () => desk.quit();
+    deskFs = () => {
+      const on = !document.body.classList.contains('fs');
+      if (on) { document.documentElement.classList.remove('widget'); document.body.classList.remove('widget'); }
+      setFs(on);
+      if (on) { desk.setMode('full', size); tick(); } else applyMode();
+    };
+    setTimeout(applyMode, 0);
+  }
+
+  // ---------- Verdrahtung ----------
+  $('startBtn').onclick = toggle; $('nextBtn').onclick = next; $('prevBtn').onclick = prev;
+  $('plusBtn').onclick = plus; $('fitBtn').onclick = fit; $('resetBtn').onclick = () => reset(false); $('fsBtn').onclick = toggleFs;
+  $('addBtn').onclick = () => { S.phases.push({ name: 'Phase ' + (S.phases.length + 1), sec: 300 }); save(); renderList(); tick(); };
+  $('soundBtn').onclick = () => { S.sound = !S.sound; if (S.sound) initAudio(); save(); renderList(); };
+  const tplMin = () => Math.round(parseFloat($('tplMin').value) || 0);
+  $('avivaBtn').onclick = () => { const m = tplMin(); if (m < 10) { $('tplMin').value = 10; return; } S.phases = avivaPlan(m); save(); renderList(); tick(); };
+  $('singleBtn').onclick = () => { const m = tplMin(); if (m < 1) return; S.phases = [{ name: 'Timer', sec: m * 60 }]; save(); renderList(); tick(); };
+  $('endClock').onchange = () => { S.endClock = $('endClock').value; save(); tick(); };
+  $('endClear').onclick = () => { S.endClock = ''; save(); renderList(); tick(); };
+  $('time').addEventListener('dblclick', toggleFs);
+  $('favSave').onclick = saveFav;
+  $('favName').addEventListener('keydown', e => { if (e.key === 'Enter') saveFav(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    else if (k === 'n' || e.key === 'ArrowRight') next();
+    else if (e.key === 'ArrowLeft') prev();
+    else if (k === 'r') reset(false);
+    else if (k === 'f') toggleFs();
+    else if (k === 'm' && !window.desk) togglePip();
+    else if (e.key === 'Escape' && document.body.classList.contains('fs')) (deskFs ? deskFs() : setFs(false));
+  });
+
+  // ---------- Verbindung zum Arbeitsplatz: Klingelzeiten und Erinnerungen ----------
+  const ERIN = window.Erinnerung;
+  function uebernehmen(ende, titel) {
+    if (!/^\d\d:\d\d$/.test(ende || '')) return;
+    if (S.status !== 'idle') { $('bellNote').textContent = `Stundenende ${ende} erst nach dem Zurücksetzen übernehmbar.`; return; }
+    S.endClock = ende; save(); renderList(); tick();
+    $('bellNote').textContent = `Stundenende ${ende}` + (titel ? ` (${titel})` : '') + ' aus dem Stundenplan.';
+  }
+  if (ERIN) {
+    ERIN.starten();
+    $('endBell').onclick = () => {
+      const k = ERIN.klingel(Date.now());
+      if (k) uebernehmen(k.bis, k.titel); else $('bellNote').textContent = 'Heute keine Stunde mehr laut Klingelzeiten.';
+    };
+    // erst nach dem Einrichten der ganzen Seite (der Pausen-Teil weiter unten muss schon stehen)
+    setTimeout(() => {
+      try {
+        const q = new URLSearchParams(location.search);
+        if (q.get('ende')) { uebernehmen(q.get('ende'), q.get('titel') || ''); history.replaceState(null, '', location.pathname); }
+      } catch (e) {}
+    }, 0);
+    if (desk && desk.onAuftrag) desk.onAuftrag((ende, titel) => uebernehmen(ende, titel));
+  } else { $('endBell').hidden = true; }
+  $('wsBtn').onclick = () => { if (desk && desk.arbeitsplatz) desk.arbeitsplatz(); else window.open('index.html', 'arbeitsplatz'); };
+
+  // ---------- Pausen aus den Klingelzeiten: Vorwarnung und Blinken im Fenster ----------
+  // Quelle sind die Klingelzeiten im Arbeitsplatz (pro Wochentag, auch aus WebUntis). Anders als die
+  // kurzen Hinweise aus erinnerung.js erscheint jede Pause des Tages, auch ohne eigenen Unterricht davor.
+  const PKEY = 'unterrichtstimer.pausen', OK_KEY = 'unterrichtstimer.pausen-ok';
+  let P = { an: true, vorher: 5 }, okIds = [], pausen = [], pausenAm = 0, pausenTag = '', brkNow = null, brkGemeldet = '';
+  try {
+    const j = JSON.parse(localStorage.getItem(PKEY) || 'null');
+    if (j) P = { an: j.an !== false, vorher: Math.min(30, Math.max(0, Math.round(+j.vorher) || 0)) };
+    const a = JSON.parse(localStorage.getItem(OK_KEY) || '[]');
+    if (Array.isArray(a)) okIds = a.filter(x => typeof x === 'string');
+  } catch (e) {}
+  const saveP = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch (e) {} };
+  const pzName = p => p.aufsicht && !/aufsicht/i.test(p.name) ? p.name + ' (Aufsicht)' : p.name;
+  const pzIcon = p => p.aufsicht ? '👀' : '☕';
+
+  function pausenHeute(now) {
+    const heute = ERIN.datum(now);
+    if (now - pausenAm < 15000 && heute === pausenTag) return pausen;
+    pausenAm = now; pausenTag = heute; pausen = [];
+    let text;
+    try {
+      const s = ERIN.laden(), E = s.einst;
+      if (E.aktiv === false) text = 'Erinnerungen sind im Arbeitsplatz ausgeschaltet.';
+      else if (E.stillAm === heute) text = 'Heute stumm geschaltet (Arbeitsplatz).';
+      else if (E.erinPause === false) text = 'Pausen-Erinnerung ist im Arbeitsplatz ausgeschaltet.';
+      else {
+        pausen = ERIN.tag(now, s).filter(x => x.typ === 'pause' && !x.entfall && x.ende > x.start)
+          .map(x => ({ name: x.name || 'Pause', von: x.von, bis: x.bis, start: x.start, ende: x.ende, aufsicht: !!x.aufsicht, key: heute + '|' + x.von }));
+        text = pausen.length ? 'Heute: ' + pausen.map(p => `${pzIcon(p)} ${pzName(p)} ${p.von}–${p.bis}`).join(' · ')
+          : 'Heute keine Pausen in den Klingelzeiten.';
+      }
+    } catch (e) { text = 'Die Klingelzeiten konnten nicht gelesen werden.'; }
+    $('pzListe').textContent = text + ' Zeiten ändern: 🏠 Arbeitsplatz → Klingelzeiten.';
+    return pausen;
+  }
+
+  function pausenZeigen(now) {
+    let st = null;
+    if (ERIN && P.an) {
+      const lead = P.vorher * 60000;
+      for (const p of pausenHeute(now)) {
+        if (now >= p.start && now < p.ende) { st = { art: okIds.includes(p.key) ? 'laeuft' : 'jetzt', p }; break; }
+        if (lead && now >= p.start - lead && now < p.start) { st = { art: 'bald', p }; break; }
+      }
+    } else if (ERIN) pausenHeute(now);
+    brkNow = st;
+    const el = $('brk');
+    el.hidden = !st;
+    document.body.classList.toggle('hasbrk', !!st);
+    document.body.classList.toggle('brkalert', !!st && st.art === 'jetzt');
+    if (!st) return;
+    const p = st.p, kopf = `${pzIcon(p)} ${pzName(p)}`;
+    el.dataset.art = st.art;
+    $('brkTxt').textContent = st.art === 'bald' ? `${kopf} in ${fmt(p.start - now, true)}`
+      : st.art === 'jetzt' ? `${kopf}! Bis ${p.bis}` : `${kopf} · noch ${fmt(p.ende - now, true)}`;
+    $('brkOk').hidden = st.art !== 'jetzt';
+    if (st.art === 'jetzt' && brkGemeldet !== p.key) {
+      brkGemeldet = p.key;
+      // Ton nur, wenn nicht schon der Gong aus erinnerung.js zur selben Zeit kommt
+      let gong = false;
+      try { const s = ERIN.laden(); gong = s.einst.ton && ERIN.ereignisse(now, s).some(e => (e.art === 'ende' || e.art === 'pause') && Math.abs(e.t - p.start) < 60000); } catch (e) {}
+      if (!gong) { initAudio(); beep(); }
+      try { if (desk && desk.aufmerksam) desk.aufmerksam(); } catch (e) {}
+    }
+  }
+  function pauseOk() {
+    if (!brkNow) return;
+    const heute = ERIN.datum(Date.now());
+    okIds = okIds.filter(k => k.startsWith(heute)).concat(brkNow.p.key);
+    try { localStorage.setItem(OK_KEY, JSON.stringify(okIds)); } catch (e) {}
+    tick();
+  }
+  if (ERIN) {
+    $('pzAn').checked = P.an; $('pzVorher').value = P.vorher;
+    $('pzAn').onchange = () => { P.an = $('pzAn').checked; saveP(); tick(); };
+    $('pzVorher').onchange = () => { P.vorher = Math.min(30, Math.max(0, Math.round(+$('pzVorher').value) || 0)); $('pzVorher').value = P.vorher; saveP(); tick(); };
+    $('brkOk').onclick = pauseOk;
+  } else $('pausenBox').hidden = true;
+
+  renderList(); tick();
+  // Taktgeber im Worker: läuft auch dann sekundengenau, wenn der Tab im Hintergrund liegt
+  let fallback = null;
+  const useInterval = () => { if (!fallback) fallback = setInterval(tick, 250); };
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),250)'], { type: 'text/javascript' })));
+    w.onmessage = () => tick(); w.onerror = useInterval;
+  } catch (e) { useInterval(); }
+})();
+</script>
+</body>
+</html>

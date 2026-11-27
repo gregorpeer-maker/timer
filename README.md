@@ -4,10 +4,10 @@ Timer für die Unterrichtsstunde nach dem AVIVA-Modell (Ankommen, Vorwissen akti
 
 Das Repository enthält:
 
-- **`index.html`** – der Timer als Webseite. Läuft in jedem Browser, auch über GitHub Pages.
-- **`arbeitsplatz.html`** – der KFZ-Arbeitsplatz für die Zusammenarbeit im Fachlehrer-Team (siehe unten).
+- **`index.html`** – der KFZ-Arbeitsplatz für die Zusammenarbeit im Fachlehrer-Team (siehe unten). Startseite im Browser und in der Windows-App.
+- **`timer.html`** – der Unterrichtstimer. Öffnet sich über „⏱ Timer“ im Arbeitsplatz. (`arbeitsplatz.html` leitet für alte Lesezeichen zum Arbeitsplatz weiter.)
 - **`erinnerung.js`** – Erinnerungen an Stundenende, Pausen und Pausenaufsicht; wird von Timer und Arbeitsplatz gemeinsam genutzt.
-- **Windows-App** (`main.js`, `preload.js`, `package.json`) – derselbe Timer als kleines Fenster mit durchsichtigem Hintergrund, das über allen Programmen bleibt. Der Knopf **🏠 Arbeitsplatz** öffnet den Arbeitsplatz in einem zweiten Fenster.
+- **Windows-App** (`main.js`, `preload.js`, `package.json`) – startet mit dem Arbeitsplatz. Der Knopf **⏱ Timer** öffnet den Timer als kleines Fenster mit durchsichtigem Hintergrund, das über allen Programmen bleibt.
 
 ## KFZ-Arbeitsplatz
 
@@ -18,6 +18,7 @@ Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX
 - **WebUntis (immer aktuell):** iCal-Link aus WebUntis einfügen (derselbe wie in Google Kalender). Die Windows-App ruft ihn automatisch alle 30 Minuten ab; die echten Stunden pro Datum – mit Vertretungen und Entfällen – ersetzen dann die Wochenvorlage, Pausen und Feierabend kommen weiter aus den Klingelzeiten. Fächer werden automatisch erkannt und lassen sich zuordnen. Im Browser sperrt WebUntis den direkten Abruf vermutlich; dort die .ics-Datei hochladen. Der Link bleibt nur auf dem eigenen Gerät.
 - **Digitales Register:** Knopf „📒 Register“ oben öffnet das Register (Link unter Team & Austausch eintragen). Ein Datenzugriff ist nicht eingebaut: Es gibt keine offizielle Schnittstelle, und es geht um Schülerdaten.
 - **Design:** schwarzer Hintergrund, in Arbeitsplatz und Timer.
+- **Schalter auf der Startseite:** „Stunde bald zu Ende“ und „Pausen“ mit einem Klick ein- und ausschalten.
 - **Erinnerungen:** x Minuten vor Stundenende, beim Klingeln, bei Pausenbeginn, kurz vor Pausenende, vor der Pausenaufsicht und zum Feierabend – mit Gong, Hinweis im Fenster und Systemmitteilung. Doppelstunden werden zusammengefasst. „Heute stumm“ für Ausflugstage.
 - **Wie liefen deine Stunden?** Nach jeder Stunde ein Klick (geschafft / nicht ganz / fiel aus) – das Thema rückt in der Stoffverteilung weiter.
 - **Stoffverteilung** pro Fach und Klasse, mit geplanten und gebrauchten Stunden; Themen lassen sich aus einer anderen Klasse übernehmen.
@@ -61,7 +62,7 @@ Zip entpacken und `Unterrichtstimer.exe` starten. Das Programm ist nicht signier
 - **Planen:** großes Fenster zum Bearbeiten des Stundenplans; **Mini-Ansicht** führt zurück.
 - **Pausen:** Ein Balken oben kündigt jede Pause aus den Klingelzeiten an (Vorwarnung einstellbar, Standard 5 Minuten). Zum Pausenbeginn blinkt das Fenster und es kommt ein Ton, bis man **OK** klickt; danach zeigt der Balken die restliche Pausenzeit. Die Zeiten werden im Arbeitsplatz unter **Klingelzeiten** gepflegt; im Timer unter „Pausen im Fenster anzeigen“ abschaltbar.
 - **Vollbild** (oder Taste F): Timer über den ganzen Bildschirm, z. B. für den Beamer. Esc oder F führt zurück.
-- **✕** beendet das Programm. Plan und laufende Stunde bleiben gespeichert.
+- **✕** schließt den Timer; der Arbeitsplatz bleibt offen. Plan und laufende Stunde bleiben gespeichert.
 
 ## Selbst bauen
 

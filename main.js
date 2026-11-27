@@ -1,4 +1,5 @@
-// Unterrichtstimer – Windows-App: rahmenloses, durchsichtiges Fenster, in der Mini-Ansicht immer im Vordergrund.
+// KFZ-Arbeitsplatz – Windows-App. Start mit dem Arbeitsplatz; der Timer ist ein rahmenloses, durchsichtiges
+// Fenster, das in der Mini-Ansicht immer im Vordergrund bleibt und erst auf Knopfdruck aufgeht.
 const { app, BrowserWindow, ipcMain, screen, net, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -48,7 +49,9 @@ function extern(w) {
   });
 }
 
-function create() {
+// Timer-Fenster bei Bedarf anlegen; fn läuft, sobald die Seite bereit ist
+function openTimer(fn) {
+  if (win) { if (fn) fn(); win.show(); win.focus(); return; }
   loadPos();
   win = new BrowserWindow({
     ...widgetBounds(1), frame: false, transparent: true, backgroundColor: '#00000000',
@@ -58,8 +61,9 @@ function create() {
   });
   win.removeMenu();
   extern(win);
-  win.loadFile(path.join(__dirname, 'index.html'));
+  win.loadFile(path.join(__dirname, 'timer.html'));
   win.once('ready-to-show', () => win.show());
+  if (fn) win.webContents.once('did-finish-load', fn);
   const remember = () => { if (mode === 'widget' && win) { const [x, y] = win.getPosition(); pos = { x, y }; savePos(); } };
   win.on('moved', remember);
   win.on('close', remember);
@@ -67,17 +71,18 @@ function create() {
   win.on('focus', () => win.flashFrame(false));
 }
 
-// Arbeitsplatz: normales Fenster neben dem Timer
+// Arbeitsplatz: Hauptfenster
 function openWorkplace() {
   if (ws) { if (ws.isMinimized()) ws.restore(); ws.show(); ws.focus(); return; }
   const a = screen.getPrimaryDisplay().workArea;
   ws = new BrowserWindow({
-    width: Math.min(1280, a.width - 40), height: Math.min(860, a.height - 40), title: 'KFZ-Arbeitsplatz', backgroundColor: '#0e1621',
+    width: Math.min(1280, a.width - 40), height: Math.min(860, a.height - 40), title: 'KFZ-Arbeitsplatz', backgroundColor: '#000000', show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), backgroundThrottling: false },
   });
   ws.removeMenu();
   extern(ws);
-  ws.loadFile(path.join(__dirname, 'arbeitsplatz.html'));
+  ws.loadFile(path.join(__dirname, 'index.html'));
+  ws.once('ready-to-show', () => { ws.maximize(); ws.show(); });
   ws.on('closed', () => { ws = null; });
 }
 
@@ -92,12 +97,11 @@ ipcMain.handle('ical', async (e, url) => {
   if (t.length > 10e6 || !t.includes('BEGIN:VCALENDAR')) throw new Error('Das ist kein Kalender (iCal).');
   return t;
 });
-ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: Stundenende übernehmen und Timer zeigen
-  if (!win) return;
-  win.webContents.send('auftrag', String(ende || ''), String(titel || ''));
-  win.show(); win.focus();
+ipcMain.on('timer', (e, ende, titel) => {   // Arbeitsplatz -> Timer: öffnen und Stundenende übernehmen
+  openTimer(() => { if (win && ende) win.webContents.send('auftrag', String(ende || ''), String(titel || '')); });
 });
-ipcMain.on('quit', () => app.quit());
+// ✕ im Timer schließt nur den Timer; ohne Arbeitsplatz endet das Programm
+ipcMain.on('quit', e => { if (win && e.sender === win.webContents && ws) win.close(); else app.quit(); });
 // Pausenbeginn: Timer nach vorne holen und in der Taskleiste blinken lassen, ohne den Fokus zu stehlen
 ipcMain.on('aufmerksam', () => {
   if (!win) return;
@@ -108,8 +112,8 @@ ipcMain.on('aufmerksam', () => {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
+  app.on('second-instance', openWorkplace);
   app.setAppUserModelId('Unterrichtstimer');   // nötig für Windows-Mitteilungen
-  app.whenReady().then(create);
+  app.whenReady().then(openWorkplace);
   app.on('window-all-closed', () => app.quit());
 }

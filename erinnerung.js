@@ -1,4 +1,4 @@
-// Erinnerungen an Stundenende und Pausen – gemeinsam genutzt von Arbeitsplatz (arbeitsplatz.html) und Timer (index.html).
+// Erinnerungen an Stundenende und Pausen – gemeinsam genutzt von Arbeitsplatz (index.html) und Timer (timer.html).
 // Liest Klingelzeiten, Stundenplan und Einstellungen aus localStorage['arbeitsplatz.v1'].
 // Laufen beide Seiten gleichzeitig, verhindert die Liste 'arbeitsplatz.gefeuert', dass eine Erinnerung doppelt kommt.
 (function () {
@@ -47,6 +47,8 @@
   const TYPEN = ['stunde', 'pause', 'feierabend'];
   const DEFAULT_EINST = {
     aktiv: true,        // Erinnerungen überhaupt
+    erinStunde: true,   // Schalter „Stunde bald zu Ende“ (vor Ende und beim Klingeln)
+    erinPause: true,    // Schalter „Pausen“ (Beginn, kurz vor Ende, Blinken im Timer)
     vorEnde: 5,         // Minuten vor Stundenende (0 = aus)
     beiEnde: true,      // beim Klingeln
     pauseBeginn: true,
@@ -237,6 +239,7 @@
         // Doppelstunde: keine Erinnerung mitten im Block
         if (nx && nx.typ === 'stunde' && x.eintrag && gleich(nx.eintrag, x.eintrag) && nx.start - x.ende < 6e5) return;
         const f = x.eintrag ? fach(x.eintrag.fach) : null;
+        if (E.erinStunde === false) return;
         if (E.vorEnde > 0) add('vorende', x, x.ende - E.vorEnde * 6e4, `Noch ${E.vorEnde} Minuten`,
           (x.eintrag ? label(x.eintrag) + ' – ' : '') + `Klingel um ${x.bis}. ` + (f && f.ende ? f.ende : 'Zeit zum Abschließen.'));
         if (E.beiEnde) {
@@ -259,7 +262,8 @@
         if (x.aufsicht && E.aufsichtVorher >= 0) add('aufsicht', x, x.start - E.aufsichtVorher * 6e4, 'Pausenaufsicht',
           `${x.name || 'Pause'} ${x.von}–${x.bis}: Du hast Aufsicht.`);
         if (!drin && !x.aufsicht) return;
-        if (E.pauseBeginn && !x.aufsicht && !(rel(vorher) && E.beiEnde && vorher.ende === x.start))
+        if (E.erinPause === false) return;
+        if (E.pauseBeginn && !x.aufsicht && !(rel(vorher) && E.beiEnde && E.erinStunde !== false && vorher.ende === x.start))
           add('pause', x, x.start, x.name || 'Pause', `Bis ${x.bis}.`);
         if (E.vorPauseEnde > 0 && rel(nachher)) add('pauseende', x, x.ende - E.vorPauseEnde * 6e4,
           `${x.name || 'Pause'} endet in ${E.vorPauseEnde} Min`, nachher.eintrag ? 'Danach: ' + label(nachher.eintrag) + '.' : `Unterricht ab ${x.bis}.`);

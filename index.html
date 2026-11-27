@@ -3,851 +3,1288 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Unterrichtstimer</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<title>KFZ-Arbeitsplatz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <style>
-  /* Layout: oben Stundenleiste (Ist-Füllung gegen Uhr-Marke), links der Phasenring, rechts der Stundenplan. */
-  /* Schwarzes Design wie im Arbeitsplatz */
+  /* Schwarzes Design: immer dunkel; hell nur über data-theme="light" */
   :root {
-    --bg: #000000; --panel: #0d0d10; --fg: #f4f4f6; --muted: #8a8a96; --line: #22222a;
-    --accent: #4f8cff; --on-accent: #ffffff;
-    --warn: #ffb020; --on-warn: #1a1000; --crit: #ff5b5b; --good: #34d399;
-    --p1: #4f8cff; --p2: #b18cff; --p3: #2ee6c5; --p4: #ff8a3d; --p5: #ff6fa8;
+    --bg: #000000; --side: #050507; --panel: #0d0d10; --panel2: #15151a; --fg: #f4f4f6; --muted: #8a8a96; --line: #202027;
+    --accent: #4f8cff; --accent2: #8b5cf6; --on-accent: #ffffff; --warn: #ffb020; --crit: #ff5b5b; --good: #34d399; --hi: #ffb020;
+    --FT: #4f8cff; --ET: #ffd23f; --FR: #2ee6c5; --PX: #ff8a3d; --MK: #b18cff;
     --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
-    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --r: 16px; --glow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 8px 28px color-mix(in srgb, var(--accent) 30%, transparent);
     color-scheme: dark;
   }
   :root[data-theme="light"] {
-    --bg: #f2f4f7; --panel: #ffffff; --fg: #16202b; --muted: #5b6978; --line: #d3dae2;
-    --accent: #1f6fd6; --warn: #b06a00; --on-warn: #ffffff; --crit: #c92a2a; --good: #19804a;
-    --p1: #2a7de1; --p2: #8257d0; --p3: #0c948a; --p4: #cf7a1f; --p5: #bf3f76; color-scheme: light;
+    --bg: #f3f4f7; --side: #ffffff; --panel: #ffffff; --panel2: #f2f3f6; --fg: #121218; --muted: #5f6270; --line: #dfe1e7;
+    --accent: #2563eb; --accent2: #7c3aed; --warn: #b45309; --crit: #dc2626; --good: #15803d; --hi: #b45309;
+    --FT: #2563eb; --ET: #a16207; --FR: #0f766e; --PX: #c2410c; --MK: #7c3aed; color-scheme: light;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px;
-    padding-block: 16px;
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-right: max(16px, env(safe-area-inset-right, 0px));
-    display: flex; flex-direction: column; gap: 14px;
-  }
-  button, input { font: inherit; color: var(--fg); }
-  button {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
-    padding: 9px 14px; cursor: pointer;
-  }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body); display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  button, input, select, textarea { font: inherit; color: var(--fg); }
+  button { background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; cursor: pointer; }
   button:hover:not(:disabled) { border-color: var(--accent); }
   button:disabled { opacity: .45; cursor: default; }
-  button.primary { background: linear-gradient(135deg, var(--accent), #8b5cf6); border-color: transparent; color: var(--on-accent); font-weight: 600; min-width: 150px; box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent); }
-  button { border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
-  button.danger { border-color: var(--crit); color: var(--crit); }
-  button.on { border-color: var(--accent); color: var(--accent); }
-  input { background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; min-width: 0; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  button.small { padding: 4px 9px; font-size: 13px; }
+  button.ghost { background: none; border-color: transparent; }
+  button.danger { color: var(--crit); }
+  input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* Kopf */
-  .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
-  .top h1 { font-family: var(--display); font-size: 20px; font-weight: 700; margin: 0; margin-right: auto; }
-  .clock { font-family: var(--display); font-variant-numeric: tabular-nums; font-size: 20px; color: var(--muted); }
-  .chip {
-    font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 17px;
-    padding: 6px 14px; border-radius: 999px; border: 2px solid var(--line); color: var(--muted);
+  /* Kopfleiste */
+  .top { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: var(--side); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--fg); text-decoration: none; margin-right: 6px; }
+  .brand .logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 19px; }
+  #q { flex: 1 1 220px; max-width: 460px; border-radius: 999px; padding: 8px 16px; }
+  .clock { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; margin-left: auto; }
+  .me { text-decoration: none; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+  #menuBtn { display: none; }
+
+  .shell { flex: 1; display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 0; }
+  aside { background: var(--side); border-right: 1px solid var(--line); padding: 12px 10px; overflow-y: auto; }
+  main { overflow-y: auto; padding: 18px 28px 40px; }
+  .wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Seitenleiste */
+  .nav { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; text-decoration: none; color: var(--fg); font-weight: 600; }
+  .nav:hover { background: var(--panel2); }
+  .nav.on { background: color-mix(in srgb, var(--c, var(--accent)) 16%, transparent); color: var(--c, var(--accent)); }
+  .nav .ic { width: 22px; text-align: center; }
+  .nav .cnt { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .nav .cnt.alert { color: var(--crit); font-weight: 700; }
+  .sec { margin: 16px 10px 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; text-decoration: none; color: var(--fg); font-weight: 600; font-size: 14px; background: var(--panel2); }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+
+  /* Inhalt */
+  .crumb { color: var(--accent); font-size: 13px; }
+  h1 { margin: 0; font-size: 28px; }
+  h2 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  h2 .grow, .grow { flex: 1; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .card.mark { border-left: 4px solid var(--c, var(--hi)); }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+  .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: color-mix(in srgb, var(--hi) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--hi) 55%, var(--line)); border-radius: 10px; padding: 9px 14px; }
+  .banner .grow { min-width: 200px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; background: var(--panel2); border-radius: 9px; }
+  .row.cur { outline: 2px solid var(--accent); }
+  .row.done { opacity: .55; }
+  .list { display: flex; flex-direction: column; gap: 6px; }
+  .tm { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .f { display: inline-block; min-width: 30px; text-align: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; border-radius: 6px; padding: 2px 6px;
+       background: color-mix(in srgb, var(--c, var(--muted)) 20%, transparent); color: var(--c, var(--muted)); }
+  .kl { font-weight: 700; }
+  .topic { color: var(--muted); }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .badge.crit { color: var(--crit); } .badge.warn { color: var(--warn); } .badge.good { color: var(--good); } .badge.mut { color: var(--muted); }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 2px; }
+
+  /* Jetzt-Karte */
+  .now { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
+  .now .big { font-size: 22px; font-weight: 700; }
+  .now .rest { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
+  .now .rest.warn { color: var(--warn); }
+  .prog { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--panel2); overflow: hidden; }
+  .prog i { display: block; height: 100%; background: var(--c, var(--accent)); }
+
+  /* Tabellen */
+  .tbl { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+  .tbl th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 8px; }
+  .tbl td { background: var(--panel2); padding: 7px 8px; vertical-align: middle; }
+  .tbl td:first-child { border-radius: 8px 0 0 8px; } .tbl td:last-child { border-radius: 0 8px 8px 0; }
+  .tbl tr.cur td { background: color-mix(in srgb, var(--accent) 16%, var(--panel2)); }
+  .tbl tr.done td { opacity: .6; }
+  .scroll { overflow-x: auto; }
+  .week { display: grid; grid-template-columns: repeat(var(--n), minmax(150px, 1fr)); gap: 8px; min-width: calc(var(--n) * 158px); }
+  .day { display: flex; flex-direction: column; gap: 4px; }
+  .day h3 { margin: 0 0 2px; font-size: 13px; color: var(--muted); text-align: center; }
+  .day h3.heute { color: var(--accent); }
+  .slot { width: 100%; min-height: 50px; text-align: left; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 8px; }
+  .slot .tm { font-size: 11px; }
+  .slot.has { background: color-mix(in srgb, var(--c) 16%, var(--panel2)); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); }
+  .slot small { color: var(--muted); }
+  .pz { font-size: 12px; color: var(--muted); padding: 4px 8px; border-radius: 8px; border: 1px dashed var(--line); display: flex; flex-direction: column; gap: 2px; }
+  .pz label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; color: var(--fg); }
+  .fa { font-size: 12px; text-align: center; color: var(--good); padding: 4px; font-weight: 600; }
+  .bellrow { display: grid; grid-template-columns: 130px minmax(100px, 1fr) 124px 124px auto auto; gap: 6px; align-items: center; padding: 6px; border-radius: 9px; background: var(--panel2); }
+  .bellrow.warn { outline: 2px solid var(--crit); }
+  .bellrow.leer { opacity: .55; }
+  .bellrow > .btns { margin-left: 0; flex-wrap: nowrap; justify-self: end; }
+  .wd { display: inline-flex; gap: 3px; }
+  .wd button { padding: 4px 0; width: 30px; font-size: 12px; border-radius: 7px; background: var(--bg); color: var(--muted); }
+  .wd button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px 18px; }
+  .settings label { display: flex; align-items: center; gap: 8px; }
+  .settings input[type=number] { width: 64px; text-align: right; }
+
+  /* To-dos */
+  .todo { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; padding: 8px 10px; background: var(--panel2); border-radius: 9px; border-left: 4px solid transparent; }
+  .todo.wichtig { border-left-color: var(--crit); }
+  .todo input[type=checkbox] { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--accent); }
+  .todo .t { font-weight: 600; overflow-wrap: anywhere; }
+  .todo .m { grid-column: 2; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .todo.erl .t { text-decoration: line-through; opacity: .6; }
+  .todo .act { grid-row: 1 / 3; grid-column: 3; display: flex; gap: 2px; }
+  .todo .act button { padding: 3px 7px; }
+  .colhead { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .grp { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 6px; }
+  .grp.crit { color: var(--crit); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: none; }
+  .seg button.on { background: var(--accent); color: var(--on-accent); }
+
+  .pin { padding: 10px 12px; background: var(--panel2); border-radius: 9px; display: flex; flex-direction: column; gap: 4px; }
+  .pin .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pin .m { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 18px; width: min(520px, calc(100% - 24px)); max-height: 90vh; overflow-y: auto; }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog form { display: flex; flex-direction: column; gap: 10px; }
+  dialog h3 { margin: 0 0 4px; }
+  .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .fld.chk { flex-direction: row; align-items: center; color: var(--fg); font-size: 15px; }
+  .fld input, .fld select, .fld textarea { color: var(--fg); font-size: 15px; }
+  .dlg-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  .dlg-btns .danger { margin-right: auto; }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    aside { position: fixed; top: 0; bottom: 0; left: 0; width: 280px; z-index: 50; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 30px rgba(0,0,0,.4); }
+    body.menu aside { transform: none; }
+    #menuBtn { display: inline-block; }
+    main { padding: 14px 16px 40px; }
+    .two { grid-template-columns: minmax(0, 1fr); }
+    .bellrow { grid-template-columns: 1fr 1fr; }
+    .bellrow .wd { grid-column: 1 / -1; }
+    .brand span:last-child { display: none; }
+    .now .rest { font-size: 30px; }
   }
-  .chip[data-s="good"] { border-color: var(--good); color: var(--good); }
-  .chip[data-s="warn"] { border-color: var(--warn); color: var(--warn); }
-  .chip[data-s="crit"] { border-color: var(--crit); background: var(--crit); color: var(--panel); }
-
-  /* Stundenleiste */
-  .lesson { display: flex; flex-direction: column; gap: 6px; }
-  .bar-wrap { position: relative; padding-top: 16px; }
-  .bar, .names { display: flex; gap: 3px; }
-  .seg { height: 16px; border-radius: 4px; overflow: hidden; min-width: 0;
-         background: color-mix(in srgb, var(--c) 24%, var(--panel)); }
-  .seg i { display: block; height: 100%; width: 0; background: var(--c); }
-  .seg.cur { outline: 2px solid var(--fg); outline-offset: 1px; }
-  .names span { min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .names span.cur { color: var(--fg); font-weight: 600; }
-  .mark { position: absolute; top: 0; bottom: -3px; width: 2px; background: var(--fg); transform: translateX(-1px); }
-  .mark::before {
-    content: "Uhr"; position: absolute; top: -3px; left: 5px; font-size: 11px; line-height: 1;
-    color: var(--fg); font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-  }
-  .mark.flip::before { left: auto; right: 5px; }
-  .endline { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 1.3em; }
-
-  /* Bühne + Plan */
-  .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; flex: 1; }
-  .stage { display: flex; flex-direction: column; align-items: center; gap: 16px; min-width: 0; }
-  .ring-wrap { position: relative; width: min(58vh, 100%); max-width: 100%; aspect-ratio: 1; container-type: inline-size; --pc: var(--accent); }
-  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
-  .ring-wrap circle { fill: none; stroke-width: 9; }
-  .track { stroke: var(--line); }
-  .prog { stroke: var(--pc); stroke-linecap: round; transition: stroke .3s; }
-  .ring-wrap.warn .prog { stroke: var(--warn); }
-  .ring-wrap.over .prog { stroke: var(--crit); }
-  .display { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqw; text-align: center; }
-  .pname { font-family: var(--display); font-weight: 700; font-size: 6.2cqw; color: var(--pc); max-width: 68cqw; text-wrap: balance; line-height: 1.1; }
-  .time { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 20cqw; line-height: 1; letter-spacing: -.02em; }
-  .ring-wrap.warn .time { color: var(--warn); }
-  .ring-wrap.over .time { color: var(--crit); }
-  .sub { color: var(--muted); font-size: 3.8cqw; max-width: 66cqw; min-height: 1.3em; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  .hint { color: var(--muted); font-size: 12px; text-align: center; }
-  #pipVideo { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
-
-  .panel { background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, #fff 2%), var(--panel)); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .panel h2 { font-family: var(--display); font-size: 16px; margin: 0; display: flex; justify-content: space-between; gap: 8px; }
-  .panel h2 span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
-  .rows { display: flex; flex-direction: column; gap: 6px; }
-  .row { display: grid; grid-template-columns: 12px minmax(0, 1fr) 62px auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 8px; }
-  .row.cur { background: color-mix(in srgb, var(--c) 14%, var(--panel)); }
-  .row.done .nm, .row.done .mn { opacity: .6; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
-  .mn { text-align: right; font-variant-numeric: tabular-nums; }
-  .tools { display: flex; gap: 4px; }
-  .tools button { padding: 5px 8px; line-height: 1; }
-  .meta { grid-column: 2 / -1; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .meta.late { color: var(--crit); }
-  .setup { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
-  .line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .line label { color: var(--muted); }
-  .line input[type="number"] { width: 68px; text-align: right; }
-  .note { font-size: 12px; color: var(--muted); margin: 0; }
-  .line input[type="text"] { flex: 1 1 140px; }
-  .favs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .fav { display: inline-flex; max-width: 100%; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-  .fav button { border: 0; border-radius: 0; padding: 7px 10px; min-width: 0; }
-  .fav button:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fav button + button { border-left: 1px solid var(--line); color: var(--muted); }
-  .fav button[data-arm] { color: var(--crit); }
-
-  @media (max-width: 860px) {
-    .grid { grid-template-columns: minmax(0, 1fr); }
-    .ring-wrap { width: min(58vh, 100%, 420px); }
-  }
-
-  /* Vollbild für den Beamer */
-  body.fs .panel, body.fs .hint, body.fs .top h1 { display: none; }
-  body.fs .grid { grid-template-columns: minmax(0, 1fr); }
-  body.fs .ring-wrap { width: min(70vh, 100%); }
-  body.fs .top { justify-content: space-between; }
-  body.fs .chip { font-size: 24px; padding: 8px 20px; }
-  body.fs .clock { font-size: 26px; }
-  body.fs .names span { font-size: 15px; }
-  body.fs .seg { height: 22px; }
-  body.fs .controls { transition: opacity .4s; }
-  body.fs.idle .controls { opacity: 0; pointer-events: none; }
-  body.fs.idle { cursor: none; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* Schalter (ein/aus) */
+  .switches { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .sw { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; user-select: none; position: relative; }
+  .sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .sw .knob { width: 44px; height: 26px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); position: relative; transition: background .2s; flex: none; }
+  .sw .knob::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
+  .sw input:checked + .knob { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .sw input:checked + .knob::after { transform: translateX(18px); background: #fff; }
+  .sw input:focus-visible + .knob { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---------- Windows-App: nur dort sichtbar ---------- */
-  .deskonly { display: none; }
-  body.desk .deskonly { display: inline-block; }
-  body.desk #pipBtn, body.desk.fs #modeBtn { display: none; }
-  body.desk.fs .top { -webkit-app-region: no-drag; }
-  body.desk:not(.widget) .top { -webkit-app-region: drag; }
-  body.desk:not(.widget) .widgetonly { display: none; }
+  /* ---------- Modernes Design ---------- */
+  h1, h2, .brand, .now .big, .now .rest, .clock { font-family: var(--display); letter-spacing: -.01em; }
+  h1 { font-size: 34px; font-weight: 700; }
+  .crumb { text-transform: uppercase; letter-spacing: .1em; font-size: 11px; font-weight: 600; color: var(--muted); }
+  .top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding: 10px 18px; }
+  .brand .logo { border-radius: 11px; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 45%, transparent); }
+  #q { background: var(--panel); border-color: var(--line); }
+  #q:focus { border-color: var(--accent); outline: none; box-shadow: var(--glow); }
+  .me { background: var(--panel); }
+  aside { background: var(--side); }
+  .nav { border-radius: 10px; font-weight: 500; color: color-mix(in srgb, var(--fg) 82%, var(--muted)); position: relative; transition: background .15s, color .15s; }
+  .nav.on { background: color-mix(in srgb, var(--c, var(--accent)) 13%, transparent); color: var(--fg); font-weight: 600; }
+  .nav.on::before { content: ""; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c, var(--accent)); }
+  .nav.on .ic { filter: drop-shadow(0 0 6px var(--c, var(--accent))); }
+  .card { border-radius: var(--r); background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, #fff 2%), var(--panel)); border-color: var(--line); padding: 18px 20px; transition: border-color .2s; }
+  .card:hover { border-color: color-mix(in srgb, var(--line) 60%, var(--muted)); }
+  .card.mark { border-left-width: 1px; box-shadow: inset 3px 0 0 var(--c, var(--hi)); }
+  .card h2 { font-size: 18px; font-weight: 600; }
+  button { border-radius: 10px; background: var(--panel2); border-color: var(--line); font-weight: 500; transition: border-color .15s, background .15s, box-shadow .15s, transform .05s; }
+  button:hover:not(:disabled) { background: color-mix(in srgb, var(--panel2) 70%, var(--accent) 12%); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.primary { background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--accent2))); border-color: transparent; box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent); }
+  button.primary:hover:not(:disabled) { background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: var(--glow); }
+  button.ghost { background: none; }
+  input, select, textarea { background: color-mix(in srgb, var(--bg) 60%, var(--panel)); border-color: var(--line); border-radius: 10px; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .row, .todo, .pin, .tbl td { background: var(--panel2); border: 1px solid transparent; }
+  .row { border-radius: 12px; } .todo, .pin { border-radius: 12px; }
+  .row.cur { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 24px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .todo.wichtig { border-left: 3px solid var(--crit); }
+  .chip { background: var(--panel2); border-color: var(--line); }
+  .chip.on, .chip:hover { border-color: var(--accent); color: var(--fg); background: color-mix(in srgb, var(--accent) 14%, var(--panel2)); }
+  .f { border-radius: 7px; letter-spacing: .06em; }
+  .seg { background: var(--panel2); border-color: var(--line); border-radius: 11px; padding: 3px; gap: 2px; }
+  .seg button { border-radius: 8px; }
+  .seg button.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent); }
+  .now .rest { font-size: 56px; font-weight: 700; background: linear-gradient(180deg, var(--fg), color-mix(in srgb, var(--fg) 55%, var(--muted))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .now .rest.warn { background: none; color: var(--warn); }
+  .prog { height: 6px; background: var(--panel2); }
+  .prog i { background: linear-gradient(90deg, var(--c, var(--accent)), color-mix(in srgb, var(--c, var(--accent)) 50%, var(--accent2))); box-shadow: 0 0 12px var(--c, var(--accent)); border-radius: 99px; }
+  .banner { border-radius: 14px; background: color-mix(in srgb, var(--hi) 9%, var(--panel)); }
+  .slot { background: var(--panel2); }
+  .slot.has { box-shadow: inset 3px 0 0 var(--c); }
+  .slot.aus { opacity: .7; }
+  .slot .badge { align-self: flex-start; }
+  .slot .fn { color: var(--c, var(--fg)); font-size: 14px; line-height: 1.25; }
+  .slot .raw { font-size: 10px; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .pz { background: transparent; }
+  .bellrow { border: 1px solid var(--line); background: var(--panel2); }
+  dialog { border-radius: 20px; background: var(--panel); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
+  ::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+  * { scrollbar-width: thin; scrollbar-color: #2a2a33 transparent; }
+  .erin { background: var(--panel2) !important; border-radius: 14px !important; }
 
-  /* Pausen-Balken: Vorwarnung, blinkend zum Pausenbeginn, danach Restzeit */
-  .brk {
-    display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; border-radius: 10px;
-    border: 2px solid var(--warn); background: var(--panel); color: var(--warn); text-shadow: none;
-    font-family: var(--display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums;
-  }
-  .brk span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brk[data-art="laeuft"] { border-color: var(--line); color: var(--fg); }
-  .brk[data-art="jetzt"] { background: var(--warn); color: var(--on-warn); animation: brk-blink 1s steps(1, end) infinite; }
-  .brk button { padding: 4px 16px; font-weight: 700; background: var(--bg); color: var(--fg); border-color: var(--bg); }
-  @keyframes brk-blink { 50% { background: var(--panel); color: var(--warn); } }
-  body.fs .brk { font-size: 30px; }
-  .pausen { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
-  .chk { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; }
-  .chk input { accent-color: var(--accent); width: 16px; height: 16px; }
-
-  /* Mini-Ansicht: alle Maße in rem, 1rem = Fensterbreite / 34 */
-  html.widget { font-size: calc(100vw / 34); background: transparent; }
-  body.widget {
-    background: color-mix(in srgb, var(--bg) calc(var(--wa, .6) * 100%), transparent);
-    height: 100vh; padding: 1rem; gap: .6rem; overflow: hidden; border-radius: 1.2rem; font-size: 1.3rem;
-    text-shadow: 0 0 .35rem var(--bg), 0 0 .35rem var(--bg), 0 0 .12rem var(--bg);
-    -webkit-app-region: drag; user-select: none;
-  }
-  body.widget button, body.widget input { -webkit-app-region: no-drag; text-shadow: none; }
-  body.widget h1, body.widget .names, body.widget .endline, body.widget .panel, body.widget .hint,
-  body.widget .ring-wrap svg, body.widget .sub, body.widget #resetBtn, body.widget .mark::before { display: none; }
-  body.widget .top { gap: .5rem; justify-content: space-between; flex-wrap: nowrap; }
-  body.widget .clock { font-size: 1.6rem; color: var(--fg); }
-  body.widget .chip { font-size: 1.5rem; padding: .15rem .9rem; border-width: .15rem; text-shadow: none; background: var(--bg); white-space: nowrap; }
-  body.widget .chip[data-s="crit"] { background: var(--crit); }
-  body.widget .bar-wrap { padding-top: 0; }
-  body.widget .seg { height: .9rem; border-radius: .3rem; }
-  body.widget .seg.cur { outline-width: .15rem; }
-  body.widget .mark { top: -.3rem; bottom: -.3rem; width: .25rem; }
-  body.widget .grid { display: block; flex: 1; }
-  body.widget .stage { gap: .5rem; }
-  body.widget .ring-wrap { width: 100%; aspect-ratio: auto; container-type: normal; }
-  body.widget .display { position: static; gap: 0; }
-  body.widget .pname { font-size: 1.9rem; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  body.widget .time { font-size: 8.4rem; }
-  body.widget .controls { gap: .4rem; }
-  body.widget button { padding: .35rem .8rem; border-radius: .6rem; font-size: 1.25rem; min-width: 0; border-width: .1rem; }
-  body.widget #alpha { width: 7rem; padding: 0; border: 0; background: none; accent-color: var(--accent); vertical-align: middle; }
-  body.widget .brk { font-size: 1.5rem; padding: .25rem .7rem; gap: .6rem; border-width: .15rem; border-radius: .6rem; }
-  body.widget .brk button { padding: .15rem .9rem; font-size: 1.3rem; }
-  body.widget.hasbrk .lesson { display: none; }
-  body.widget .brk[data-art="jetzt"] { animation: none; }   /* im Mini-Fenster blinkt das ganze Fenster, der Balken bleibt gelb */
-  body.widget.brkalert { box-shadow: inset 0 0 0 .3rem var(--warn); animation: brk-fenster 1s steps(1, end) infinite; }
-  @keyframes brk-fenster { 50% { background: color-mix(in srgb, var(--warn) 45%, var(--bg)); } }
+  @media print { aside, .top, button { display: none !important; } .shell { display: block; } main { overflow: visible; } }
 </style>
 </head>
 <body>
-
 <header class="top">
-  <h1>Unterrichtstimer</h1>
-  <span class="clock" id="clock" title="Aktuelle Uhrzeit">--:--</span>
-  <span class="chip" id="chip" role="status">Bereit</span>
+  <button id="menuBtn" aria-label="Menü öffnen">☰</button>
+  <a class="brand" href="#/start"><span class="logo">⚙</span><span>KFZ-Arbeitsplatz</span></a>
+  <input id="q" type="search" placeholder="Suchen … (z. B. Ohmsches Gesetz, 3A, Prüfung)" aria-label="Suchen">
+  <span class="clock" id="clock">--:--</span>
+  <button id="timerBtn" title="Unterrichtstimer öffnen – Stundenende wird aus der Klingel übernommen">⏱ Timer</button>
+  <button id="syncBtn" title="Mit der Team-Datei abgleichen" hidden>⇅</button>
+  <a class="me" id="regBtn" target="_blank" rel="noopener" hidden title="Digitales Register öffnen">📒 Register</a>
+  <a class="me" id="meBtn" href="#/team">👤 Name eintragen</a>
 </header>
-
-<div class="brk" id="brk" hidden>
-  <span id="brkTxt"></span>
-  <button id="brkOk" title="Pause gesehen – Blinken beenden" hidden>OK</button>
+<div class="shell">
+  <aside id="side" aria-label="Navigation"></aside>
+  <main id="main"></main>
 </div>
-
-<section class="lesson" aria-label="Verlauf der Stunde">
-  <div class="bar-wrap">
-    <div class="bar" id="bar"></div>
-    <div class="mark" id="mark" hidden></div>
-  </div>
-  <div class="names" id="names"></div>
-  <div class="endline" id="endline"></div>
-</section>
-
-<main class="grid">
-  <section class="stage">
-    <div class="ring-wrap" id="wrap">
-      <svg viewBox="0 0 220 220" aria-hidden="true">
-        <circle class="track" cx="110" cy="110" r="100"/>
-        <circle class="prog" id="prog" cx="110" cy="110" r="100"/>
-      </svg>
-      <div class="display">
-        <div class="pname" id="pname"></div>
-        <div class="time" id="time">00:00</div>
-        <div class="sub" id="sub"></div>
-      </div>
-    </div>
-    <div class="controls">
-      <button id="prevBtn" title="Zurück zur vorigen Phase (←)">← Zurück</button>
-      <button class="primary" id="startBtn">Stunde starten</button>
-      <button id="nextBtn" title="Nächste Phase (→ oder N)">Nächste Phase →</button>
-      <button id="plusBtn" title="Laufende Phase um 1 Minute verlängern">+1 Min</button>
-      <button id="fitBtn" hidden></button>
-      <button id="resetBtn">Zurücksetzen</button>
-      <button id="fsBtn">Vollbild</button>
-      <button id="modeBtn" class="deskonly"></button>
-      <button id="sizeBtn" class="deskonly widgetonly" title="Fenstergröße wechseln">Größe</button>
-      <input id="alpha" class="deskonly widgetonly" type="range" min="0" max="100" step="5" value="60" title="Hintergrund: links durchsichtig, rechts deckend" aria-label="Deckkraft des Hintergrunds">
-      <button id="quitBtn" class="deskonly" title="Programm beenden">✕</button>
-      <button id="pipBtn" title="Kleines Fenster, das über allen Programmen bleibt (M)">Mini-Fenster</button>
-    </div>
-    <div class="hint" id="pipNote" hidden></div>
-    <canvas id="pipCanvas" width="960" height="540" hidden></canvas>
-    <video id="pipVideo" muted playsinline aria-hidden="true" tabindex="-1"></video>
-    <div class="hint">Leertaste = Start/Pause · → oder N = nächste Phase · ← = zurück · F = Vollbild · M = Mini-Fenster · R = Zurücksetzen</div>
-  </section>
-
-  <section class="panel">
-    <h2>Stundenplan <span id="total"></span></h2>
-    <div class="rows" id="rows"></div>
-    <div class="setup" id="setup">
-      <div class="line">
-        <label for="favName">Favorit</label>
-        <input id="favName" type="text" maxlength="40" placeholder="Name, z. B. 3A Elektrotechnik">
-        <button id="favSave" title="Aktuellen Stundenplan unter diesem Namen speichern">★ Speichern</button>
-      </div>
-      <div class="favs" id="favs"></div>
-      <div class="line">
-        <button id="addBtn">+ Phase</button>
-        <button id="soundBtn" class="on">Ton: an</button>
-      </div>
-      <div class="line">
-        <label for="tplMin">Vorlage für</label>
-        <input id="tplMin" type="number" min="1" max="300" value="50"> Min
-        <button id="avivaBtn">AVIVA-Stunde</button>
-        <button id="singleBtn">Einzelner Timer</button>
-      </div>
-      <div class="line">
-        <label for="endClock">Stundenende um</label>
-        <input id="endClock" type="time">
-        <button id="endBell" title="Ende der laufenden (oder nächsten) Stunde aus dem Stundenplan im Arbeitsplatz übernehmen">🔔 Klingel</button>
-        <button id="endClear">Leeren</button>
-      </div>
-      <div class="line">
-        <button id="wsBtn" title="Arbeitsplatz mit Stundenplan, Stoffverteilung, To-dos und Team öffnen">🏠 Arbeitsplatz</button>
-        <span class="note" id="bellNote"></span>
-      </div>
-      <div class="pausen" id="pausenBox">
-        <div class="line">
-          <label class="chk"><input id="pzAn" type="checkbox" checked> Pausen im Fenster anzeigen</label>
-          <label for="pzVorher">Vorwarnung</label>
-          <input id="pzVorher" type="number" min="0" max="30" value="5"> Min
-        </div>
-        <p class="note" id="pzListe"></p>
-      </div>
-      <p class="note">Ohne Uhrzeit endet die Stunde nach der Plandauer ab Start. Mit Uhrzeit zählt die Klingel: wer spät startet, ist sofort im Verzug. Pausen laufen gegen die Uhr und erzeugen ebenfalls Verzug.</p>
-    </div>
-  </section>
-</main>
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+<input type="file" id="icsIn" accept=".ics,text/calendar" hidden>
 
 <script src="erinnerung.js"></script>
 <script>
 (() => {
+  'use strict';
+  const E = window.Erinnerung;
   const $ = id => document.getElementById(id);
-  const KEY = 'unterrichtstimer.v1';
-  const AVIVA = [['Ankommen', 10], ['Vorwissen aktivieren', 15], ['Informieren', 25], ['Verarbeiten', 35], ['Auswerten', 15]];
-  const C = 2 * Math.PI * 100;
-  const prog = $('prog'), wrap = $('wrap');
-  prog.style.strokeDasharray = C;
+  const COLS = ['stoff', 'aufgaben', 'notizen', 'termine', 'personen', 'log'];
+  const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WTL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const FORMAT = 'kfz-arbeitsplatz-team';
+  const { pad, norm, uhr } = E;
 
-  function avivaPlan(min) {
-    const raw = AVIVA.map(a => a[1] * min / 100), fl = raw.map(Math.floor);
-    let rest = min - fl.reduce((a, b) => a + b, 0);
-    raw.map((r, i) => [r - fl[i], r, i]).sort((a, b) => b[0] - a[0] || b[1] - a[1])
-      .forEach(([, , i]) => { if (rest > 0) { fl[i]++; rest--; } });
-    return AVIVA.map((a, i) => ({ name: a[0], sec: fl[i] * 60 }));
+  // ---------- Daten ----------
+  function laden() {
+    const s = E.laden();
+    s.ich = Object.assign({ name: '', klasse: '' }, s.ich || {});
+    s.team = s.team && typeof s.team === 'object' ? s.team : {};
+    COLS.forEach(c => { if (!Array.isArray(s.team[c])) s.team[c] = []; });
+    s.ui = Object.assign({ fk: {}, todoFilter: 'offen', erinnert: [] }, s.ui || {});
+    return s;
   }
-
-  // status: idle | running | paused | finished
-  let S = { phases: avivaPlan(50), orig: null, status: 'idle', idx: 0, acc: 0, runAt: null,
-            start: null, target: null, endAt: null, actual: [], beeped: false, sound: true, endClock: '' };
-  try {
-    const j = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (j && Array.isArray(j.phases) && j.phases.length && j.phases.every(p => p && typeof p.name === 'string' && p.sec > 0)) {
-      S = Object.assign(S, j);
-      if (S.idx >= S.phases.length) { S.idx = 0; S.status = 'idle'; }
-    }
-  } catch (e) {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
-
-  const pad = n => String(n).padStart(2, '0');
-  function fmt(ms, ceil) {
-    const s = Math.max(0, ceil ? Math.ceil(ms / 1000) : Math.floor(ms / 1000));
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-    return h ? `${h}:${pad(m)}:${pad(x)}` : `${pad(m)}:${pad(x)}`;
+  let S = laden();
+  let syncTimer = null;
+  function save(ohneSync) {
+    E.setExtra(S.faecher);
+    try { localStorage.setItem(E.KEY, JSON.stringify(S)); } catch (e) { E.toast({ art: 'ende', titel: 'Speichern fehlgeschlagen', text: 'Der Browser erlaubt keinen Speicher (privates Fenster?).' }); }
+    if (!ohneSync && fh) { clearTimeout(syncTimer); syncTimer = setTimeout(() => abgleichen(false), 4000); }
   }
-  const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
-  const minTxt = sec => (Math.round(sec / 6) / 10).toString().replace('.', ',') + ' Min';
-  const totalSec = () => S.phases.reduce((a, p) => a + p.sec, 0);
-  const wdg = () => document.body.classList.contains('widget');
-  const active = () => S.status === 'running' || S.status === 'paused';
-  const elapsed = now => S.acc + (S.status === 'running' ? now - S.runAt : 0);
-  const futureMs = () => S.phases.slice(S.idx + 1).reduce((a, p) => a + p.sec, 0) * 1000;
-  // Verzug = voraussichtliches Ende minus Soll-Ende
-  const needed = now => Math.max(0, S.phases[S.idx].sec * 1000 - elapsed(now)) + futureMs();
-  function clockTarget(now) {
-    if (!/^\d\d:\d\d$/.test(S.endClock || '')) return null;
-    const d = new Date(now); d.setHours(+S.endClock.slice(0, 2), +S.endClock.slice(3), 0, 0);
-    return d.getTime() > now ? d.getTime() : null;
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const alive = c => S.team[c].filter(x => !x.del);
+  function put(c, item, still) {
+    item.id = item.id || uid(); item.upd = Date.now(); item.von = S.ich.name || '';
+    if (!item.autor) item.autor = S.ich.name || '';
+    const i = S.team[c].findIndex(x => x.id === item.id);
+    if (i >= 0) S.team[c][i] = item; else S.team[c].push(item);
+    save(); if (!still) render();
+    return item;
   }
-
-  // ---------- Aktionen ----------
-  function start() {
-    const now = Date.now();
-    initAudio(); wakeLock();
-    if (S.status === 'finished') { reset(true); return; }
-    if (S.status === 'idle') {
-      S.orig = S.phases.map(p => ({ ...p }));
-      S.start = now; S.target = clockTarget(now) || now + totalSec() * 1000;
-      S.idx = 0; S.acc = 0; S.actual = []; S.beeped = false; S.endAt = null;
-    }
-    S.status = 'running'; S.runAt = now;
-    save(); renderList(); tick();
+  function drop(c, id) {
+    const i = S.team[c].findIndex(x => x.id === id); if (i < 0) return;
+    const x = S.team[c][i];
+    S.team[c][i] = { id: x.id, del: true, upd: Date.now(), von: S.ich.name || '', privat: x.privat || undefined };
+    save(); render();
   }
-  function pause() {
-    S.acc = elapsed(Date.now()); S.runAt = null; S.status = 'paused';
-    save(); tick();
-  }
-  function toggle() { S.status === 'running' ? pause() : start(); }
-  function next() {
-    if (!active()) return;
-    const now = Date.now();
-    S.actual[S.idx] = elapsed(now);
-    if (S.idx >= S.phases.length - 1) { S.status = 'finished'; S.endAt = now; S.runAt = null; }
-    else { S.idx++; S.acc = 0; S.beeped = false; if (S.status === 'running') S.runAt = now; }
-    save(); renderList(); tick();
-  }
-  function prev() {   // macht "Nächste Phase" rückgängig: die Zeit läuft in der vorigen Phase weiter
-    if (!active() || S.idx === 0) return;
-    const now = Date.now(), here = elapsed(now);
-    S.idx--; S.acc = (S.actual[S.idx] || 0) + here; S.actual.length = S.idx;
-    S.beeped = S.acc >= S.phases[S.idx].sec * 1000;
-    if (S.status === 'running') S.runAt = now;
-    save(); renderList(); tick();
-  }
-  function plus() {
-    if (!active()) return;
-    S.phases[S.idx].sec += 60; S.beeped = false;
-    save(); renderList(); tick();
-  }
-  function fit() {    // Restphasen so stauchen/strecken, dass die Stunde zum Soll-Ende aufgeht
-    if (!active()) return;
-    const now = Date.now(), avail = S.target - now, pe = elapsed(now);
-    const cur = S.phases[S.idx], r = Math.max(0, cur.sec * 1000 - pe), n = r + futureMs();
-    if (avail <= 0 || n <= 0) return;
-    const f = avail / n;
-    cur.sec = Math.max(1, Math.round((pe + r * f) / 1000));
-    for (let i = S.idx + 1; i < S.phases.length; i++) S.phases[i].sec = Math.max(10, Math.round(S.phases[i].sec * f));
-    save(); renderList(); tick();
-  }
-  let armed = null;
-  function reset(force) {
-    if (!force && S.status !== 'idle' && !armed) {
-      $('resetBtn').textContent = 'Wirklich zurücksetzen?'; $('resetBtn').classList.add('danger');
-      armed = setTimeout(disarm, 3000); return;
-    }
-    disarm();
-    if (S.orig) S.phases = S.orig.map(p => ({ ...p }));
-    Object.assign(S, { orig: null, status: 'idle', idx: 0, acc: 0, runAt: null, start: null, target: null, endAt: null, actual: [], beeped: false });
-    save(); renderList(); tick();
-  }
-  function disarm() { clearTimeout(armed); armed = null; $('resetBtn').textContent = 'Zurücksetzen'; $('resetBtn').classList.remove('danger'); }
-
-  // ---------- Plan-Editor ----------
-  let refs = [];
-  function renderList() {
-    const rows = $('rows'), bar = $('bar'), names = $('names'), idle = S.status === 'idle';
-    rows.textContent = ''; bar.textContent = ''; names.textContent = ''; refs = [];
-    S.phases.forEach((p, i) => {
-      const c = `var(--p${i % 5 + 1})`;
-      const done = S.status === 'finished' || (active() && i < S.idx), cur = active() && i === S.idx;
-      const row = document.createElement('div');
-      row.className = 'row' + (done ? ' done' : '') + (cur ? ' cur' : ''); row.style.setProperty('--c', c);
-      const dot = document.createElement('span'); dot.className = 'dot';
-      const nm = document.createElement('input'); nm.className = 'nm'; nm.id = 'ph-name-' + i; nm.value = p.name;
-      nm.setAttribute('aria-label', 'Name Phase ' + (i + 1)); nm.disabled = done;
-      nm.onchange = () => { p.name = nm.value.trim() || 'Phase ' + (i + 1); save(); renderList(); tick(); };
-      const mn = document.createElement('input'); mn.className = 'mn'; mn.id = 'ph-min-' + i; mn.type = 'number';
-      mn.min = '0.5'; mn.step = 'any'; mn.value = Math.round(p.sec / 6) / 10; mn.disabled = done;
-      mn.setAttribute('aria-label', 'Minuten Phase ' + (i + 1)); mn.title = 'Minuten';
-      mn.onchange = () => {
-        const v = parseFloat(mn.value);
-        if (v > 0) { p.sec = Math.max(10, Math.round(v * 60)); if (cur) S.beeped = false; save(); }
-        renderList(); tick();
-      };
-      const tools = document.createElement('div'); tools.className = 'tools';
-      [['↑', 'Nach oben', () => move(i, -1), i === 0], ['↓', 'Nach unten', () => move(i, 1), i === S.phases.length - 1],
-       ['✕', 'Phase löschen', () => del(i), S.phases.length === 1]].forEach(([t, lab, fn, off]) => {
-        const b = document.createElement('button'); b.textContent = t; b.title = lab; b.setAttribute('aria-label', lab);
-        b.disabled = off || !idle; b.onclick = fn; tools.appendChild(b);
+  const valid = x => x && typeof x === 'object' && typeof x.id === 'string' && x.id.length < 60 && Number.isFinite(x.upd);
+  function merge(other) {
+    let n = 0;
+    COLS.forEach(c => {
+      (other && Array.isArray(other[c]) ? other[c] : []).forEach(x => {
+        if (!valid(x) || x.privat) return;
+        const i = S.team[c].findIndex(y => y.id === x.id);
+        if (i < 0) { S.team[c].push(x); n++; }
+        else if (x.upd > (S.team[c][i].upd || 0)) { S.team[c][i] = x; n++; }
       });
-      const meta = document.createElement('div'); meta.className = 'meta';
-      if (done && S.actual[i] != null) {
-        const d = S.actual[i] - p.sec * 1000;
-        meta.textContent = `gebraucht ${fmt(S.actual[i])} · ` + (Math.abs(d) < 5000 ? 'im Plan' : d > 0 ? `${fmt(d)} länger` : `${fmt(-d)} kürzer`);
-        if (d >= 5000) meta.classList.add('late');
-      }
-      row.append(dot, nm, mn, tools, meta); rows.appendChild(row);
-
-      const seg = document.createElement('div'); seg.className = 'seg' + (cur ? ' cur' : '');
-      seg.style.setProperty('--c', c); seg.style.flex = p.sec + ' 0 0'; seg.title = `${p.name} · ${minTxt(p.sec)}`;
-      const fill = document.createElement('i'); seg.appendChild(fill); bar.appendChild(seg);
-      const lab = document.createElement('span'); lab.className = cur ? 'cur' : ''; lab.style.flex = p.sec + ' 0 0';
-      lab.textContent = p.name; names.appendChild(lab);
-      refs.push({ meta, fill });
     });
-    $('total').textContent = minTxt(totalSec());
-    $('addBtn').disabled = $('avivaBtn').disabled = $('singleBtn').disabled = !idle;
-    $('endClock').disabled = $('endClear').disabled = !idle;
-    $('endClock').value = S.endClock || '';
-    $('soundBtn').textContent = 'Ton: ' + (S.sound ? 'an' : 'aus'); $('soundBtn').classList.toggle('on', S.sound);
-    renderFavs();
+    return n;
   }
-  // ---------- Favoriten: gespeicherte Stundenpläne ----------
-  const FKEY = 'unterrichtstimer.favs';
-  let favs = [];
-  try {
-    const j = JSON.parse(localStorage.getItem(FKEY) || '[]');
-    if (Array.isArray(j)) favs = j.filter(f => f && typeof f.name === 'string' && Array.isArray(f.phases) && f.phases.length
-      && f.phases.every(p => p && typeof p.name === 'string' && p.sec > 0));
-  } catch (e) {}
-  const saveFavs = () => { try { localStorage.setItem(FKEY, JSON.stringify(favs)); } catch (e) {} };
-  function renderFavs() {
-    const box = $('favs'); box.textContent = '';
-    if (!favs.length) {
-      const n = document.createElement('p'); n.className = 'note';
-      n.textContent = 'Noch keine Favoriten. Stundenplan einstellen, Namen eingeben und speichern.'; box.appendChild(n); return;
+  // Was an Kolleginnen und Kollegen geht: alles außer privaten To-dos
+  const teamTeil = () => { const t = {}; COLS.forEach(c => { t[c] = S.team[c].filter(x => !x.privat); }); return t; };
+  const paket = () => ({ format: FORMAT, version: 1, stand: new Date().toISOString(), von: S.ich.name || '', team: teamTeil() });
+
+  // ---------- Hilfen ----------
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag); let val;
+    if (props) for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'value') val = v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k in el && typeof v !== 'string') el[k] = v;
+      else el.setAttribute(k, v === true ? '' : v);
     }
-    favs.forEach((f, i) => {
-      const w = document.createElement('span'); w.className = 'fav';
-      const load = document.createElement('button'), del = document.createElement('button');
-      load.textContent = f.name; load.disabled = S.status !== 'idle';
-      load.title = `${minTxt(f.phases.reduce((a, p) => a + p.sec, 0))} · ${f.phases.length} ${f.phases.length === 1 ? 'Phase' : 'Phasen'}`
-        + (f.endClock ? ` · Ende ${f.endClock}` : '') + (load.disabled ? ' – laden erst nach dem Zurücksetzen' : ' – laden');
-      load.onclick = () => {
-        S.phases = f.phases.map(p => ({ name: p.name, sec: p.sec })); S.endClock = f.endClock || '';
-        $('favName').value = f.name; save(); renderList(); tick();
-      };
-      del.textContent = '✕'; del.title = 'Favorit löschen'; del.setAttribute('aria-label', 'Favorit ' + f.name + ' löschen');
-      del.onclick = () => {
-        if (del.dataset.arm) { favs.splice(i, 1); saveFavs(); renderFavs(); return; }
-        del.dataset.arm = '1'; del.textContent = 'Löschen?';
-        setTimeout(() => { if (del.isConnected) { delete del.dataset.arm; del.textContent = '✕'; } }, 3000);
-      };
-      w.append(load, del); box.appendChild(w);
-    });
+    kids.flat(Infinity).forEach(c => { if (c != null && c !== false) el.append(c instanceof Node ? c : String(c)); });
+    if (val !== undefined) { el.value = val; if (tag === 'input' && val !== null) el.setAttribute('value', val); }
+    return el;
   }
-  function saveFav() {
-    const name = $('favName').value.trim();
-    if (!name) { $('favName').focus(); return; }
-    const fav = { name, phases: (S.orig || S.phases).map(p => ({ name: p.name, sec: p.sec })), endClock: S.endClock || '' };
-    const i = favs.findIndex(f => f.name.toLowerCase() === name.toLowerCase());
-    if (i >= 0) favs[i] = fav; else favs.push(fav);
-    saveFavs(); renderFavs();
-    $('favSave').textContent = '★ Gespeichert'; setTimeout(() => { $('favSave').textContent = '★ Speichern'; }, 1500);
+  const fachC = k => { if (E.FAECHER.some(f => f.k === k)) return `--c:var(--${k})`; const x = E.alle().find(f => f.k === k); return x ? `--c:${x.farbe}` : ''; };
+  const F = k => h('span', { class: 'f', style: fachC(k), title: E.fach(k).name }, k || '–');
+  // Eintrag einer Stunde: eigenes Fach oder Vertretung (ohne Stoffverteilung)
+  const FE = e => e.vertretung ? h('span', { class: 'f', title: 'Vertretung' }, 'VT') : F(e.fach);
+  const fachTitel = e => e.vertretung ? '🔁 Vertretung ' + (e.titel || '') : E.fach(e.fach).icon + ' ' + E.fach(e.fach).name;
+  const thema = e => e.vertretung ? null : aktuellesThema(e.fach, e.klasse);
+  const iso = d => E.datum(d);
+  const heute = () => iso(new Date());
+  const addTage = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const parseISO = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3]) : null; };
+  const tageBis = s => { const d = parseISO(s); if (!d) return null; const t = parseISO(heute()); return Math.round((d - t) / 864e5); };
+  function tagLabel(s) {
+    const n = tageBis(s), d = parseISO(s);
+    if (n === 0) return 'heute'; if (n === 1) return 'morgen'; if (n === -1) return 'gestern';
+    return d ? `${WT[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.` : '';
   }
+  const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); const hh = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (hh ? hh + ':' + pad(m) : m) + ':' + pad(s % 60); };
+  const klassen = () => {
+    const set = new Map();
+    S.plan.forEach(e => e.klasse && set.set(norm(e.klasse), e.klasse.trim()));
+    alive('stoff').forEach(x => x.klasse && set.set(norm(x.klasse), x.klasse.trim()));
+    const k = E.kal(); if (k) k.ev.forEach(e => { const z = E.zuordnung(e, S); if (z.fach && z.klasse) set.set(norm(z.klasse), z.klasse.trim()); });
+    return [...set.values()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+  };
+  const stoffVon = (f, k) => alive('stoff').filter(x => x.fach === f && norm(x.klasse) === norm(k)).sort((a, b) => (a.pos || 0) - (b.pos || 0) || a.upd - b.upd);
+  const aktuellesThema = (f, k) => stoffVon(f, k).find(x => x.status !== 'fertig') || null;
+  const gebraucht = id => alive('log').filter(l => l.stoffId === id && (l.erg === 'geschafft' || l.erg === 'nicht ganz')).reduce((a, l) => a + (+l.std || 1), 0);
 
-  function move(i, d) { const j = i + d; [S.phases[i], S.phases[j]] = [S.phases[j], S.phases[i]]; save(); renderList(); tick(); }
-  function del(i) { S.phases.splice(i, 1); save(); renderList(); tick(); }
-
-  // ---------- Anzeige ----------
-  function chip(delay, prefix) {
-    const el = $('chip'), a = Math.abs(delay);
-    if (a < 30000) { el.dataset.s = 'good'; el.textContent = (prefix || '') + 'Im Plan'; }
-    else if (delay > 0) { el.dataset.s = delay >= 180000 ? 'crit' : 'warn'; el.textContent = (prefix || '') + 'Verzug +' + fmt(delay); }
-    else { el.dataset.s = 'good'; el.textContent = (prefix || '') + 'Vorsprung ' + fmt(a); }
-  }
-  function tick() {
-    const now = Date.now(), st = S.status, cur = S.phases[S.idx], pe = elapsed(now);
-    const planMs = cur.sec * 1000, rem = planMs - pe, last = S.idx === S.phases.length - 1;
-    $('clock').textContent = hhmm(now);
-    wrap.style.setProperty('--pc', `var(--p${S.idx % 5 + 1})`);
-    let frac = 1, over = false, warn = false;
-
-    if (st === 'idle') {
-      $('pname').textContent = cur.name; $('time').textContent = fmt(planMs, true);
-      $('sub').textContent = S.phases.length > 1 ? `Bereit · ${S.phases.length} Phasen` : 'Bereit';
-      const t = clockTarget(now), tot = totalSec() * 1000;
-      if (t) { chip(now + tot - t, 'Start jetzt: '); $('endline').textContent = `Plan ${minTxt(tot / 1000)} · bis ${hhmm(t)} bleiben ${minTxt((t - now) / 1000)}`; }
-      else { $('chip').dataset.s = ''; $('chip').textContent = 'Bereit'; $('endline').textContent = `Plan ${minTxt(tot / 1000)} · bei Start jetzt Ende um ${hhmm(now + tot)}`; }
-      $('mark').hidden = true;
-    } else if (st === 'finished') {
-      $('pname').textContent = 'Stunde beendet'; $('time').textContent = fmt(S.endAt - S.start);
-      $('sub').textContent = 'Gesamtdauer'; frac = 0;
-      chip(S.endAt - S.target, 'Ende: ');
-      $('endline').textContent = `Soll-Ende ${hhmm(S.target)} · tatsächlich ${hhmm(S.endAt)}`;
-      $('mark').hidden = true;
-    } else {
-      over = rem <= 0; warn = !over && (rem <= 60000 || rem / planMs <= 0.1);
-      frac = over ? 0 : rem / planMs;
-      $('pname').textContent = cur.name;
-      $('time').textContent = over ? '+' + fmt(-rem) : fmt(rem, true);
-      $('sub').textContent = st === 'paused' ? 'Pausiert – die Uhr läuft weiter'
-        : over ? 'Überzogen' : last ? 'Letzte Phase' : 'Danach: ' + S.phases[S.idx + 1].name;
-      const nd = needed(now), delay = now + nd - S.target;
-      chip(delay);
-      $('endline').textContent = `Soll-Ende ${hhmm(S.target)} · voraussichtlich ${hhmm(now + nd)} · noch ${minTxt(Math.max(0, S.target - now) / 1000)} bis Stundenende`;
-      const m = $('mark'), pos = Math.min(1, Math.max(0, (now - S.start) / (S.target - S.start)));
-      m.hidden = false; m.style.left = (pos * 100) + '%'; m.classList.toggle('flip', pos > 0.9);
-      if (refs[S.idx]) {
-        refs[S.idx].meta.textContent = `läuft ${fmt(pe)} von ${fmt(planMs)}` + (over ? ` · ${fmt(-rem)} überzogen` : '');
-        refs[S.idx].meta.classList.toggle('late', over);
-      }
-      const fb = $('fitBtn'), show = Math.abs(delay) >= 30000;
-      fb.hidden = !show;
-      if (show) {
-        fb.textContent = wdg() ? (delay > 0 ? 'Aufholen' : 'Strecken') : delay > 0 ? 'Verzug aufholen' : 'Vorsprung verteilen';
-        fb.title = delay > 0 ? 'Kürzt die restlichen Phasen anteilig, sodass die Stunde zum Soll-Ende aufgeht'
-                             : 'Verlängert die restlichen Phasen anteilig bis zum Soll-Ende';
-        fb.disabled = S.target - now <= 0;
-      }
-      if (over && !S.beeped && st === 'running') { S.beeped = true; save(); beep(); }
-    }
-    if (!active()) $('fitBtn').hidden = true;
-    refs.forEach((r, i) => {
-      const f = st === 'finished' ? 1 : !active() ? 0 : i < S.idx ? 1 : i > S.idx ? 0 : Math.min(1, pe / planMs);
-      r.fill.style.width = (f * 100) + '%';
-    });
-    prog.style.strokeDashoffset = C * (1 - frac);
-    wrap.classList.toggle('over', over); wrap.classList.toggle('warn', warn);
-    const w = wdg();
-    $('startBtn').textContent = st === 'idle' ? (S.phases.length > 1 && !w ? 'Stunde starten' : 'Start') : st === 'running' ? 'Pause' : st === 'paused' ? 'Weiter' : w ? 'Neu' : 'Neue Stunde';
-    $('nextBtn').textContent = w ? (last ? 'Ende' : '›') : last ? 'Stunde beenden' : 'Nächste Phase →';
-    $('prevBtn').textContent = w ? '‹' : '← Zurück';
-    $('plusBtn').textContent = w ? '+1' : '+1 Min';
-    $('nextBtn').disabled = $('plusBtn').disabled = !active();
-    $('prevBtn').disabled = !active() || S.idx === 0;
-    $('resetBtn').disabled = st === 'idle';
-    pausenZeigen(now);
-    if (pipOn) drawPip();
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = st === 'running' ? 'playing' : 'paused'; } catch (e) {}
-    document.title = active() ? `${st === 'running' ? '▶ ' : '⏸ '}${$('time').textContent} ${cur.name}` : 'Unterrichtstimer';
-  }
-
-  // ---------- Ton, Wake Lock, Vollbild ----------
-  let audioCtx = null;
-  function initAudio() {
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    } catch (e) { audioCtx = null; }
-  }
-  function beep() {
-    if (!S.sound || !audioCtx) return;
-    try {
-      const t0 = audioCtx.currentTime;
-      for (let i = 0; i < 2; i++) [0, 0.18].forEach((d, j) => {
-        const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = t0 + i * 0.7 + d;
-        o.type = 'sine'; o.frequency.value = j ? 1100 : 880;
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-        o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + 0.18);
+  // Formular-Dialog: liefert Werte, 'del' oder null
+  function formular(titel, felder, werte = {}, opt = {}) {
+    return new Promise(res => {
+      const dlg = $('dlg'), f = $('dlgForm'), inputs = {};
+      f.textContent = '';
+      f.append(h('h3', null, titel));
+      if (opt.hinweis) f.append(h('p', { class: 'note' }, opt.hinweis));
+      felder.forEach(fd => {
+        let el;
+        if (fd.type === 'select') el = h('select', null, fd.options.map(([v, l]) => h('option', { value: v }, l)));
+        else if (fd.type === 'textarea') el = h('textarea', { rows: 4 });
+        else el = h('input', { type: fd.type || 'text', step: fd.step, min: fd.min, max: fd.max, placeholder: fd.ph || '', maxlength: fd.max ? null : '300' });
+        if (fd.type === 'checkbox') el.checked = !!(werte[fd.k] ?? fd.def);
+        else el.value = werte[fd.k] ?? fd.def ?? '';
+        if (fd.req) el.required = true;
+        if (fd.list) { const id = 'dl' + uid(); el.setAttribute('list', id); f.append(h('datalist', { id }, fd.list.map(v => h('option', { value: v })))); }
+        inputs[fd.k] = el;
+        f.append(h('label', { class: 'fld' + (fd.type === 'checkbox' ? ' chk' : '') }, fd.type === 'checkbox' ? [el, h('span', null, fd.label)] : [h('span', null, fd.label), el]));
       });
-    } catch (e) {}
-  }
-  function wakeLock() { try { navigator.wakeLock?.request('screen').catch(() => {}); } catch (e) {} }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) wakeLock(); });
-
-  let idleTimer = null;
-  function wake() {
-    document.body.classList.remove('idle'); clearTimeout(idleTimer);
-    if (document.body.classList.contains('fs')) idleTimer = setTimeout(() => document.body.classList.add('idle'), 2500);
-  }
-  function setFs(on) { document.body.classList.toggle('fs', on); $('fsBtn').textContent = on ? 'Vollbild beenden' : 'Vollbild'; wake(); }
-  let deskFs = null;   // in der Windows-App: Vollbild über das Programmfenster
-  function toggleFs() {
-    if (deskFs) return deskFs();
-    const on = !document.body.classList.contains('fs'); setFs(on);
-    try {
-      if (on && !document.fullscreenElement) { const p = document.documentElement.requestFullscreen?.(); p && p.catch && p.catch(() => {}); }
-      else if (!on && document.fullscreenElement) { const p = document.exitFullscreen(); p && p.catch && p.catch(() => {}); }
-    } catch (e) {}
-  }
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setFs(false); });
-  ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, wake, { passive: true }));
-
-  // ---------- Mini-Fenster (Bild-in-Bild, bleibt über anderen Programmen) ----------
-  const pc = $('pipCanvas'), pv = $('pipVideo');
-  let pipOn = false, pctx = null;
-  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  function drawPip() {
-    if (!pctx) pctx = pc.getContext('2d');
-    const g = pctx, W = pc.width, H = pc.height, F = '"Space Grotesk", "Segoe UI", system-ui, sans-serif';
-    const tone = wrap.classList.contains('over') ? '--crit' : wrap.classList.contains('warn') ? '--warn' : '--fg';
-    g.globalAlpha = 1; g.fillStyle = css('--bg'); g.fillRect(0, 0, W, H);
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = css(`--p${S.idx % 5 + 1}`); g.font = '700 58px ' + F;
-    g.fillText($('pname').textContent, W / 2, 70, W - 80);
-    g.fillStyle = css(tone); g.font = '700 250px ' + F;
-    g.fillText($('time').textContent, W / 2, 245, W - 80);
-    if (brkNow) {   // Pause statt Verzug anzeigen, zum Pausenbeginn blinkend
-      const an = brkNow.art === 'jetzt' && Math.floor(Date.now() / 500) % 2 === 0;
-      if (an) { g.fillStyle = css('--warn'); g.fillRect(24, 362, W - 48, 96); }
-      g.fillStyle = css(an ? '--on-warn' : brkNow.art === 'laeuft' ? '--fg' : '--warn'); g.font = '700 56px ' + F;
-      g.fillText($('brkTxt').textContent, W / 2, 410, W - 80);
-    } else {
-      const s = $('chip').dataset.s;
-      g.fillStyle = css(s === 'crit' ? '--crit' : s === 'warn' ? '--warn' : s === 'good' ? '--good' : '--muted');
-      g.font = '700 62px ' + F;
-      g.fillText($('chip').textContent, W / 2, 410, W - 80);
-    }
-    const bw = W - 80, tot = totalSec(), y = H - 62, h = 24; let x = 40;
-    S.phases.forEach((p, i) => {
-      const w = bw * p.sec / tot, f = parseFloat(refs[i] && refs[i].fill.style.width) || 0;
-      g.fillStyle = css(`--p${i % 5 + 1}`);
-      g.globalAlpha = .28; g.fillRect(x, y, Math.max(1, w - 4), h);
-      g.globalAlpha = 1; g.fillRect(x, y, Math.max(0, (w - 4) * f / 100), h);
-      x += w;
+      f.append(h('div', { class: 'dlg-btns' },
+        opt.loeschen ? h('button', { value: 'del', class: 'danger', formnovalidate: true }, 'Löschen') : null,
+        h('button', { value: 'cancel', formnovalidate: true }, 'Abbrechen'),
+        h('button', { value: 'ok', class: 'primary' }, opt.ok || 'Speichern')));
+      dlg.onclose = () => {
+        if (dlg.returnValue === 'del') return res('del');
+        if (dlg.returnValue !== 'ok') return res(null);
+        const out = {};
+        for (const [k, el] of Object.entries(inputs)) out[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+        res(out);
+      };
+      dlg.returnValue = ''; dlg.showModal();
+      const first = f.querySelector('input:not([type=checkbox]),select,textarea'); if (first) first.focus();
     });
-    if (!$('mark').hidden) { g.fillStyle = css('--fg'); g.fillRect(40 + bw * (parseFloat($('mark').style.left) || 0) / 100 - 2, y - 12, 4, h + 24); }
   }
-  function pipNote(t) { $('pipNote').textContent = t; $('pipNote').hidden = !t; }
-  const pipOk = !!(document.pictureInPictureEnabled && pv.requestPictureInPicture && pc.captureStream);
-  if (!pipOk) { $('pipBtn').disabled = true; $('pipBtn').title = 'Dieser Browser erlaubt hier kein Mini-Fenster. Es funktioniert in Chrome oder Edge am Computer.'; }
-  async function togglePip() {
-    if (!pipOk) return;
-    if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(() => {}); return; }
-    try {
-      drawPip();
-      if (!pv.srcObject) pv.srcObject = pc.captureStream(5);
-      await pv.play();
-      await pv.requestPictureInPicture();
-      pipNote('');
-    } catch (e) { pipNote('Das Mini-Fenster wurde vom Browser abgelehnt. Öffne den Timer in Chrome oder Edge am Computer.'); }
-  }
-  pv.addEventListener('enterpictureinpicture', () => { pipOn = true; $('pipBtn').textContent = 'Mini-Fenster schließen'; drawPip(); });
-  pv.addEventListener('leavepictureinpicture', () => { pipOn = false; $('pipBtn').textContent = 'Mini-Fenster'; pv.pause(); });
-  pv.addEventListener('pause', () => { if (pipOn) pv.play().catch(() => {}); });
-  try {   // Knöpfe im Mini-Fenster: Start/Pause, nächste und vorige Phase
-    const ms = navigator.mediaSession;
-    ms.setActionHandler('play', toggle); ms.setActionHandler('pause', toggle);
-    ms.setActionHandler('nexttrack', next); ms.setActionHandler('previoustrack', prev);
-  } catch (e) {}
-  $('pipBtn').onclick = togglePip;
+  const fachOptionen = leer => [...(leer ? [['', leer]] : []), ...E.alle().map(f => [f.k, `${f.icon} ${f.name}`])];
+  const personenNamen = () => [...new Set([S.ich.name, ...alive('personen').map(p => p.name)].filter(Boolean))];
 
-  // ---------- Windows-App: Mini-Ansicht mit durchsichtigem Hintergrund ----------
-  const desk = window.desk;
-  if (desk) {
-    document.body.classList.add('desk');
-    const get = (k, d) => { try { const v = localStorage.getItem('desk.' + k); return v === null ? d : v; } catch (e) { return d; } };
-    const put = (k, v) => { try { localStorage.setItem('desk.' + k, v); } catch (e) {} };
-    let mode = get('mode', 'widget') === 'plan' ? 'plan' : 'widget', size = Math.min(2, Math.max(0, +get('size', 1) || 0));
-    const applyAlpha = () => document.body.style.setProperty('--wa', $('alpha').value / 100);
-    function applyMode() {
-      const w = mode === 'widget';
-      document.documentElement.classList.toggle('widget', w); document.body.classList.toggle('widget', w);
-      $('modeBtn').textContent = w ? 'Planen' : 'Mini-Ansicht';
-      $('modeBtn').title = w ? 'Großes Fenster zum Bearbeiten des Stundenplans' : 'Kleines durchsichtiges Fenster über allen Programmen';
-      desk.setMode(mode, size); tick();
+  // ---------- Timer ----------
+  function timerOeffnen(ende, titel) {
+    if (window.desk && window.desk.timer) { window.desk.timer(ende || '', titel || ''); return; }
+    const q = ende ? `?ende=${encodeURIComponent(ende)}&titel=${encodeURIComponent(titel || '')}` : '';
+    window.open('timer.html' + q, 'unterrichtstimer');
+  }
+  $('timerBtn').onclick = () => { const k = E.klingel(Date.now(), S); timerOeffnen(k && k.bis, k && k.titel); };
+
+  // ---------- Seitenleiste ----------
+  const route = () => (location.hash.replace(/^#\/?/, '') || 'start').split('/').map(decodeURIComponent);
+  function nav(href, ic, txt, cnt, style, alert) {
+    const r = '#/' + route().join('/');
+    return h('a', { class: 'nav' + (r === href ? ' on' : ''), href, style }, h('span', { class: 'ic' }, ic), h('span', null, txt),
+      cnt ? h('span', { class: 'cnt' + (alert ? ' alert' : '') }, cnt) : null);
+  }
+  function renderSide() {
+    const t = todoGruppen(), ueber = t.offen.filter(x => zeitGruppe(x) === 'überfällig').length;
+    const termine = alive('termine').filter(x => { const n = tageBis(x.datum); return n != null && n >= 0 && n <= 14; }).length;
+    const side = $('side'); side.textContent = '';
+    side.append(...[
+      nav('#/start', '🏠', 'Mein Arbeitsplatz'),
+      nav('#/todo', '✅', 'To-do-Liste', ueber ? ueber + ' überfällig' : t.offen.length || '', null, ueber > 0),
+      h('div', { class: 'sec' }, 'Fächer'),
+      E.FAECHER.map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      E.alle().some(f => f.extra) ? h('div', { class: 'sec' }, 'Weitere Fächer') : null,
+      E.alle().filter(f => f.extra).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
+      h('div', { class: 'sec' }, 'Organisation'),
+      nav('#/plan', '🗓', 'Stundenplan & Klingel'),
+      nav('#/termine', '📌', 'Termine', termine || ''),
+      nav('#/pinnwand', '💬', 'Pinnwand', alive('notizen').length || ''),
+      nav('#/team', '👥', 'Team & Austausch'),
+      h('div', { class: 'sec' }, 'Meine Klassen'),
+      h('div', { class: 'chips' }, klassen().length ? klassen().map(k => h('a', { class: 'chip' + (route()[0] === 'klasse' && norm(route()[1]) === norm(k) ? ' on' : ''), href: '#/klasse/' + encodeURIComponent(k) }, k))
+        : h('span', { class: 'note' }, 'Kommen aus dem Stundenplan.')),
+    ].flat());
+    $('meBtn').textContent = '👤 ' + (S.ich.name || 'Name eintragen');
+    const reg = /^https:\/\/\S+$/i.test(S.ich.register || '') ? S.ich.register : '';
+    $('regBtn').hidden = !reg; if (reg) $('regBtn').href = reg;
+    $('syncBtn').hidden = !fh;
+  }
+
+  // ---------- Startseite ----------
+  function jetztInhalt() {
+    const now = Date.now(), j = E.jetzt(now, S), box = [];
+    const x = j.slot;
+    if (x && x.typ === 'stunde') {
+      const b = E.blockEnde(j.slots, j.k), e = x.eintrag, rest = b.ende - now;
+      const startBlock = (() => { let k = j.k; while (k > 0 && j.slots[k - 1].typ === 'stunde' && E.gleich(j.slots[k - 1].eintrag, e) && e) k--; return j.slots[k].start; })();
+      box.push(h('div', { class: 'now', style: e ? fachC(e.fach) : '' },
+        h('div', null, h('div', { class: 'tm' }, `${x.nr}. Stunde · ${uhr(startBlock)}–${b.bis}`),
+          h('div', { class: 'big' }, e ? [FE(e), ' ', e.vertretung ? 'Vertretung ' + (e.titel || '') : E.fach(e.fach).name, ' · ', e.klasse || '–'] : 'Freistunde'),
+          e ? h('div', { class: 'topic' }, (e.raum ? `Raum ${e.raum}` : '') + (e.vertretung ? '' : (e.raum ? ' · ' : '') + 'Thema: ' + ((thema(e) || {}).titel || '– noch keins eingetragen'))) : null),
+        h('div', { class: 'rest' + (rest < S.einst.vorEnde * 6e4 ? ' warn' : '') }, mmss(rest)),
+        h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (now - startBlock) / (b.ende - startBlock) * 100)}%` }))));
+      box.push(h('div', { class: 'btns', style: 'margin-left:0' }, h('button', { class: 'primary', onclick: () => timerOeffnen(b.bis, e ? `${e.vertretung ? 'Vertretung' : e.fach} ${e.klasse || ''}` : '') }, `⏱ Timer bis ${b.bis}`)));
+    } else if (x && x.typ === 'pause') {
+      const nx = j.slots[j.k + 1];
+      box.push(h('div', { class: 'now' },
+        h('div', null, h('div', { class: 'tm' }, `${x.von}–${x.bis}`), h('div', { class: 'big' }, '☕ ' + (x.name || 'Pause'), x.aufsicht ? h('span', { class: 'badge warn', style: 'margin-left:8px' }, 'Aufsicht') : null),
+          nx && nx.eintrag ? h('div', { class: 'topic' }, 'Danach: ' + E.label(nx.eintrag)) : null),
+        h('div', { class: 'rest' }, mmss(x.ende - now)),
+        h('div', { class: 'prog' }, h('i', { style: `width:${(now - x.start) / (x.ende - x.start) * 100}%` }))));
+    } else {
+      const n = E.naechsteStunde(now, S);
+      box.push(h('div', null, h('div', { class: 'big', style: 'font-size:20px;font-weight:700' }, 'Gerade kein Unterricht'),
+        h('div', { class: 'topic' }, n ? `Nächste Stunde: ${tagLabel(iso(n.slot.start))} ${n.slot.von} · ${E.label(n.slot.eintrag)}` : 'Trag deinen Stundenplan ein, dann erscheint hier die laufende Stunde.')));
     }
-    $('alpha').value = get('alpha', 60); applyAlpha();
-    $('alpha').oninput = () => { applyAlpha(); put('alpha', $('alpha').value); };
-    $('modeBtn').onclick = () => { mode = mode === 'widget' ? 'plan' : 'widget'; put('mode', mode); applyMode(); };
-    $('sizeBtn').onclick = () => { size = (size + 1) % 3; put('size', size); desk.setMode(mode, size); };
-    $('quitBtn').onclick = () => desk.quit();
-    deskFs = () => {
-      const on = !document.body.classList.contains('fs');
-      if (on) { document.documentElement.classList.remove('widget'); document.body.classList.remove('widget'); }
-      setFs(on);
-      if (on) { desk.setMode('full', size); tick(); } else applyMode();
+    const ev = E.ereignisse(now, S).find(e => e.t > now);
+    const still = S.einst.stillAm === heute();
+    box.push(h('div', { class: 'row', style: 'background:none;padding:0' },
+      h('span', { class: 'note' }, !S.einst.aktiv ? '🔕 Erinnerungen ausgeschaltet' : still ? '🔕 Heute stumm' : ev ? `🔔 Nächste Erinnerung ${uhr(ev.t)}: ${ev.titel}` : '🔔 Heute keine weiteren Erinnerungen'),
+      h('div', { class: 'btns' },
+        h('button', { class: 'small', onclick: () => E.testen() }, 'Testen'),
+        h('button', { class: 'small', onclick: () => { S.einst.stillAm = still ? '' : heute(); save(true); render(); } }, still ? 'Wieder einschalten' : 'Heute stumm'))));
+    return box;
+  }
+
+  // Schnellschalter für die Erinnerungen (ein/aus)
+  function schalter() {
+    const sw = (k, ic, lab, tip) => h('label', { class: 'sw', title: tip },
+      h('input', { type: 'checkbox', role: 'switch', checked: S.einst[k] !== false, onchange: ev => { S.einst[k] = ev.target.checked; save(true); render(); } }),
+      h('span', { class: 'knob', 'aria-hidden': 'true' }), h('span', null, ic + ' ' + lab));
+    return h('div', { class: 'switches' },
+      sw('erinStunde', '🔔', 'Stunde bald zu Ende', `${S.einst.vorEnde} Minuten vorher und beim Klingeln`),
+      sw('erinPause', '☕', 'Pausen', 'Pausenbeginn, kurz vor Pausenende und Blinken im Timer'),
+      h('a', { href: '#/plan', class: 'note', style: 'margin-left:auto' }, 'Feineinstellungen ›'));
+  }
+
+  // Stunden, deren Ergebnis noch fehlt (heute und die letzten 7 Tage, ab dem ersten Planeintrag)
+  function offeneRueckmeldungen() {
+    const now = Date.now(), out = [], seit = S.ui.seit || heute();
+    for (let i = 7; i >= 0; i--) {
+      const d = addTage(new Date(), -i), key = iso(d);
+      if (key < seit) continue;
+      const gruppen = new Map();
+      E.tag(d, S).forEach(x => {
+        if (!x.eintrag || x.eintrag.vertretung || x.ende - 5 * 6e4 > now) return;
+        const g = `${x.eintrag.fach}|${norm(x.eintrag.klasse)}`;
+        if (!gruppen.has(g)) gruppen.set(g, { tag: key, e: x.eintrag, zeiten: [], std: 0 });
+        const gr = gruppen.get(g);
+        if (!gr.zeiten.length || gr.letzt !== x.i - 1) gr.zeiten.push(x.von);
+        gr.letzt = x.i; gr.std++;
+      });
+      gruppen.forEach(g => {
+        const key2 = `${g.tag}|${g.e.fach}|${norm(g.e.klasse)}`;
+        if (!alive('log').some(l => l.key === key2)) out.push(Object.assign(g, { key: key2 }));
+      });
+    }
+    return out.reverse();
+  }
+  function rueckmelden(g, erg) {
+    const th = aktuellesThema(g.e.fach, g.e.klasse);
+    if (th && erg === 'geschafft') put('stoff', Object.assign({}, th, { status: 'fertig' }), true);
+    else if (th && erg === 'nicht ganz' && th.status !== 'laeuft') put('stoff', Object.assign({}, th, { status: 'laeuft' }), true);
+    put('log', { key: g.key, datum: g.tag, fach: g.e.fach, klasse: g.e.klasse, erg, std: g.std, stoffId: th ? th.id : null, thema: th ? th.titel : '' });
+  }
+
+  function viewStart() {
+    const w = [h('div', { class: 'crumb' }, '⌂ Übersicht'), h('h1', null, 'Mein Arbeitsplatz')];
+    if ('Notification' in window && Notification.permission === 'default' && !S.ui.notifNein) {
+      w.push(h('div', { class: 'banner' }, '🔔', h('span', { class: 'grow' }, h('b', null, 'Mitteilungen'), ' auch dann, wenn das Fenster im Hintergrund ist?'),
+        h('button', { class: 'primary small', onclick: () => Notification.requestPermission().then(render) }, 'Einschalten'),
+        h('button', { class: 'small', onclick: () => { S.ui.notifNein = true; save(true); render(); } }, 'Nicht jetzt')));
+    }
+    const planDa = S.plan.length || (E.kal() && E.kal().von);
+    if (!S.ich.name || !planDa) {
+      w.push(h('div', { class: 'banner' }, '👋', h('span', { class: 'grow' }, 'Zum Start: ', !S.ich.name ? h('a', { href: '#/team' }, 'Namen eintragen') : null,
+        !S.ich.name && !planDa ? ' und ' : null, !planDa ? h('a', { href: '#/plan' }, 'Stundenplan und Klingelzeiten eintragen') : null,
+        '. Danach kommen die Erinnerungen automatisch.')));
+    }
+    w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, '⏰ Jetzt'), h('div', { id: 'jetzt', class: 'list' }, jetztInhalt()), schalter()));
+
+    const offen = offeneRueckmeldungen();
+    if (offen.length) {
+      w.push(h('section', { class: 'card mark' }, h('h2', null, '🔁 Wie liefen deine Stunden?'),
+        h('p', { class: 'note' }, 'Ein Klick genügt – das Thema rückt in der Stoffverteilung weiter.'),
+        h('div', { class: 'list' }, offen.slice(0, 10).map(g => {
+          const th = aktuellesThema(g.e.fach, g.e.klasse);
+          return h('div', { class: 'row' }, h('span', { class: 'tm' }, `${tagLabel(g.tag)} · ${g.zeiten.join(' + ')}`), F(g.e.fach), h('span', { class: 'kl' }, g.e.klasse || '–'),
+            h('span', { class: 'topic grow' }, th ? th.titel : h('a', { href: '#/fach/' + g.e.fach }, '+ Thema eintragen')),
+            h('div', { class: 'btns' },
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'geschafft'), title: 'Thema abgeschlossen – nächstes Thema wird aktuell' }, '✓ geschafft'),
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'nicht ganz'), title: 'Thema läuft in der nächsten Stunde weiter' }, '↪ nicht ganz'),
+              h('button', { class: 'small', onclick: () => rueckmelden(g, 'fiel aus') }, '⏭ fiel aus'),
+              h('button', { class: 'small ghost', title: 'Ignorieren', 'aria-label': 'Ignorieren', onclick: () => rueckmelden(g, 'ignoriert') }, '✕')));
+        }))));
+    }
+
+    w.push(h('div', { class: 'two' }, cardTodoKurz(), cardHeute()));
+    w.push(h('div', { class: 'two' }, cardNaechste(), cardTermine(21)));
+    w.push(cardPinnwand(4));
+    return w;
+  }
+
+  function cardHeute() {
+    const now = Date.now(), d = new Date(), sl = E.tag(d, S).filter(x => x.eintrag || x.aufsicht || x.entfall);
+    return h('section', { class: 'card' }, h('h2', null, `📅 Heute (${WTL[d.getDay()]})`),
+      sl.length ? h('div', { class: 'list' }, sl.map(x => h('div', { class: 'row' + (x.start <= now && now < x.ende ? ' cur' : x.ende <= now ? ' done' : '') },
+        h('span', { class: 'tm' }, `${x.von}–${x.bis}`),
+        x.eintrag ? [FE(x.eintrag), h('span', { class: 'kl' }, x.eintrag.klasse || '–'), x.eintrag.raum ? h('span', { class: 'note' }, 'Raum ' + x.eintrag.raum) : null,
+          h('span', { class: 'topic' }, x.eintrag.vertretung ? 'Vertretung ' + (x.eintrag.titel || '') : (thema(x.eintrag) || {}).titel || '')]
+          : x.entfall ? [h('span', { class: 'badge crit' }, 'entfällt'), h('span', { class: 'topic', style: 'text-decoration:line-through' }, x.titel)]
+          : h('span', null, `👀 Aufsicht · ${x.name || 'Pause'}`))))
+        : h('div', { class: 'empty' }, 'Heute kein eigener Unterricht eingetragen.'));
+  }
+  function cardNaechste() {
+    const tage = [];
+    for (let i = 1; i < 15 && tage.length < 2; i++) {
+      const d = addTage(new Date(), i), sl = E.tag(d, S).filter(x => x.eintrag);
+      if (!sl.length) continue;
+      const g = [];
+      sl.forEach(x => { const l = g[g.length - 1]; if (l && E.gleich(l.e, x.eintrag) && l.last === x.i - 1) { l.bis = x.bis; l.last = x.i; } else g.push({ e: x.eintrag, von: x.von, bis: x.bis, last: x.i }); });
+      tage.push({ d, g });
+    }
+    return h('section', { class: 'card' }, h('h2', null, '🗓 Meine nächsten Stunden', h('span', { class: 'grow' }), h('a', { href: '#/plan', style: 'font-size:13px' }, 'Woche ›')),
+      tage.length ? tage.map(t => [h('div', { class: 'grp' }, `${WTL[t.d.getDay()]} ${pad(t.d.getDate())}.${pad(t.d.getMonth() + 1)}.`),
+        h('div', { class: 'list' }, t.g.map(x => h('div', { class: 'row' }, h('span', { class: 'tm' }, `${x.von}–${x.bis}`), FE(x.e), h('span', { class: 'kl' }, x.e.klasse || '–'),
+          h('span', { class: 'topic' }, x.e.vertretung ? 'Vertretung ' + (x.e.titel || '') : (thema(x.e) || {}).titel || '– kein Thema'))))])
+        : h('div', { class: 'empty' }, 'Keine Stunden im Plan.'));
+  }
+
+  // ---------- To-do-Liste: wichtig / nicht wichtig, jeweils zeitlich sortiert ----------
+  const faelligMs = x => { const d = parseISO(x.faellig); if (!d) return Infinity; const m = E.hm(x.zeit); d.setMinutes(m == null ? 23 * 60 + 59 : m); return d.getTime(); };
+  const meins = x => x.privat || !x.fuer || x.fuer === 'alle' || !S.ich.name || x.fuer === S.ich.name;
+  function todoGruppen() {
+    const all = alive('aufgaben').filter(x => typeof x.titel === 'string');
+    const sort = (a, b) => faelligMs(a) - faelligMs(b) || (a.upd - b.upd);
+    const offen = all.filter(x => !x.erledigt && meins(x)).sort(sort);
+    return { all, offen, erledigt: all.filter(x => x.erledigt).sort((a, b) => (b.erledigtAm || 0) - (a.erledigtAm || 0)) };
+  }
+  function zeitGruppe(x) {
+    const n = tageBis(x.faellig);
+    if (n == null) return 'ohne Termin';
+    if (n < 0 || (n === 0 && faelligMs(x) < Date.now())) return 'überfällig';
+    if (n === 0) return 'heute'; if (n === 1) return 'morgen'; if (n <= 7) return 'diese Woche'; return 'später';
+  }
+  function todoZeile(x) {
+    const n = tageBis(x.faellig), ueber = zeitGruppe(x) === 'überfällig';
+    return h('div', { class: 'todo' + (x.wichtig ? ' wichtig' : '') + (x.erledigt ? ' erl' : '') },
+      h('input', { type: 'checkbox', checked: !!x.erledigt, 'aria-label': 'Erledigt: ' + x.titel,
+        onchange: ev => put('aufgaben', Object.assign({}, x, { erledigt: ev.target.checked, erledigtAm: ev.target.checked ? Date.now() : null })) }),
+      h('span', { class: 't' }, x.titel),
+      h('span', { class: 'act' },
+        h('button', { class: 'ghost small', title: x.wichtig ? 'Als nicht wichtig markieren' : 'Als wichtig markieren', 'aria-label': 'Wichtigkeit umschalten',
+          onclick: () => put('aufgaben', Object.assign({}, x, { wichtig: !x.wichtig })) }, x.wichtig ? '★' : '☆'),
+        h('button', { class: 'ghost small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => todoDialog(x) }, '✎')),
+      h('span', { class: 'm' },
+        x.faellig ? h('span', { class: 'badge ' + (ueber ? 'crit' : n <= 1 ? 'warn' : 'mut') }, (ueber ? 'überfällig · ' : '') + tagLabel(x.faellig) + (x.zeit ? ' ' + x.zeit : '')) : null,
+        x.fach ? F(x.fach) : null, x.klasse ? h('span', null, x.klasse) : null,
+        x.privat ? h('span', null, '🔒 privat') : x.fuer && x.fuer !== 'alle' ? h('span', null, '→ ' + x.fuer) : h('span', null, '👥 Team'),
+        x.notiz ? h('span', { title: x.notiz }, '📝') : null));
+  }
+  function todoListe(liste) {
+    if (!liste.length) return h('div', { class: 'empty' }, 'Nichts offen.');
+    const out = []; let g = null;
+    liste.forEach(x => { const z = zeitGruppe(x); if (z !== g) { g = z; out.push(h('div', { class: 'grp' + (z === 'überfällig' ? ' crit' : '') }, z)); } out.push(todoZeile(x)); });
+    return h('div', { class: 'list' }, out);
+  }
+  async function todoDialog(x, vorgabe) {
+    x = x || null;
+    const v = await formular(x ? 'To-do bearbeiten' : 'Neues To-do', [
+      { k: 'titel', label: 'Was ist zu tun?', req: true, ph: 'z. B. Schularbeit 3A korrigieren' },
+      { k: 'wichtig', label: '★ Wichtig', type: 'checkbox' },
+      { k: 'faellig', label: 'Fällig am', type: 'date' },
+      { k: 'zeit', label: 'Uhrzeit (optional, dann kommt eine Erinnerung)', type: 'time' },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– kein Fach –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+      { k: 'privat', label: '🔒 Nur für mich (wird nicht ans Team weitergegeben)', type: 'checkbox', def: true },
+      { k: 'fuer', label: 'Für wen? (nur bei Team-Aufgaben)', type: 'select', options: [['alle', 'Alle im Team'], ...personenNamen().map(n => [n, n])] },
+      { k: 'notiz', label: 'Notiz', type: 'textarea' },
+    ], x ? Object.assign({}, x, { privat: !!x.privat }) : vorgabe || {}, { loeschen: !!x });
+    if (v === 'del') { drop('aufgaben', x.id); return; }
+    if (!v) return;
+    put('aufgaben', Object.assign({}, x || {}, v, { privat: v.privat || undefined, fuer: v.privat ? '' : v.fuer, erinnert: x && x.faellig === v.faellig && x.zeit === v.zeit ? x.erinnert : undefined }));
+  }
+  function cardTodoKurz() {
+    const t = todoGruppen(), w = t.offen.filter(x => x.wichtig), n = t.offen.filter(x => !x.wichtig);
+    return h('section', { class: 'card' }, h('h2', null, '✅ To-do', h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => todoDialog() }, '+ To-do'), h('a', { href: '#/todo', style: 'font-size:13px' }, 'alle ›')),
+      h('div', { class: 'colhead', style: 'color:var(--crit)' }, '★ Wichtig'), todoListe(w.slice(0, 6)),
+      h('div', { class: 'colhead', style: 'color:var(--muted)' }, '☆ Nicht wichtig'), todoListe(n.slice(0, 4)),
+      t.offen.length > 10 ? h('a', { href: '#/todo' }, `… ${t.offen.length - 10} weitere`) : null);
+  }
+  function viewTodo() {
+    const t = todoGruppen(), f = S.ui.todoFilter;
+    const setF = v => { S.ui.todoFilter = v; save(true); render(); };
+    const w = [h('div', { class: 'crumb' }, '⌂ Übersicht › To-do'), h('h1', null, 'To-do-Liste'),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'primary', onclick: () => todoDialog() }, '+ Neues To-do'),
+        h('div', { class: 'seg' }, [['offen', 'Offen'], ['erledigt', 'Erledigt'], ['team', 'Ganzes Team']].map(([k, l]) => h('button', { class: f === k ? 'on' : '', onclick: () => setF(k) }, l))),
+        h('span', { class: 'note' }, 'Sortiert nach Fälligkeit. Mit Uhrzeit kommt zum Termin eine Erinnerung.'))];
+    if (f === 'erledigt') {
+      w.push(h('section', { class: 'card' }, h('h2', null, 'Erledigt', h('span', { class: 'grow' }),
+        t.erledigt.length ? h('button', { class: 'small', onclick: () => { t.erledigt.filter(x => x.privat || x.autor === S.ich.name).forEach(x => drop('aufgaben', x.id)); } }, 'Eigene erledigte löschen') : null),
+        t.erledigt.length ? h('div', { class: 'list' }, t.erledigt.map(todoZeile)) : h('div', { class: 'empty' }, 'Noch nichts erledigt.')));
+      return w;
+    }
+    const basis = f === 'team' ? t.all.filter(x => !x.erledigt && !x.privat).sort((a, b) => faelligMs(a) - faelligMs(b)) : t.offen;
+    w.push(h('div', { class: 'two' },
+      h('section', { class: 'card mark', style: '--c:var(--crit)' }, h('h2', null, '★ Wichtig', h('span', { class: 'note' }, basis.filter(x => x.wichtig).length)), todoListe(basis.filter(x => x.wichtig))),
+      h('section', { class: 'card mark', style: '--c:var(--muted)' }, h('h2', null, '☆ Nicht wichtig', h('span', { class: 'note' }, basis.filter(x => !x.wichtig).length)), todoListe(basis.filter(x => !x.wichtig)))));
+    return w;
+  }
+  // Erinnerung für To-dos mit Uhrzeit
+  function todoErinnerungen() {
+    const now = Date.now();
+    alive('aufgaben').forEach(x => {
+      if (x.erledigt || !x.zeit || !meins(x) || S.ui.erinnert.includes(x.id + x.faellig + x.zeit)) return;
+      const t = faelligMs(x);
+      if (t > now || now - t > 12 * 3600e3) return;
+      S.ui.erinnert.push(x.id + x.faellig + x.zeit); S.ui.erinnert = S.ui.erinnert.slice(-200); save(true);
+      E.ausloesen({ id: 'todo|' + x.id, art: x.wichtig ? 'aufsicht' : 'pauseende', titel: (x.wichtig ? '★ ' : '') + 'To-do fällig', text: x.titel });
+    });
+  }
+
+  // ---------- Termine & Pinnwand ----------
+  async function terminDialog(x, vorgabe) {
+    const v = await formular(x ? 'Termin bearbeiten' : 'Neuer Termin', [
+      { k: 'datum', label: 'Datum', type: 'date', req: true, def: heute() },
+      { k: 'titel', label: 'Was?', req: true, ph: 'z. B. Schularbeit Bremsanlage' },
+      { k: 'art', label: 'Art', type: 'select', options: [['Prüfung', '📝 Prüfung / Schularbeit'], ['Abgabe', '📤 Abgabe'], ['Konferenz', '👥 Konferenz / Besprechung'], ['Exkursion', '🚌 Exkursion / Betrieb'], ['Sonstiges', '📌 Sonstiges']] },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– alle Fächer –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+    ], x || vorgabe || {}, { loeschen: !!x });
+    if (v === 'del') drop('termine', x.id); else if (v) put('termine', Object.assign({}, x || {}, v));
+  }
+  function terminZeile(x) {
+    const n = tageBis(x.datum);
+    return h('div', { class: 'row' + (n < 0 ? ' done' : '') }, h('span', { class: 'tm' }, tagLabel(x.datum)),
+      h('span', { class: 'badge ' + (x.art === 'Prüfung' ? 'crit' : 'mut') }, x.art || 'Termin'), x.fach ? F(x.fach) : null, x.klasse ? h('span', { class: 'kl' }, x.klasse) : null,
+      h('span', { class: 'grow' }, x.titel), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => terminDialog(x) }, '✎'));
+  }
+  const termineSortiert = filter => alive('termine').filter(x => parseISO(x.datum) && (!filter || filter(x))).sort((a, b) => a.datum.localeCompare(b.datum));
+  function cardTermine(tage, filter, vorgabe) {
+    const l = termineSortiert(x => { const n = tageBis(x.datum); return n >= 0 && n <= tage && (!filter || filter(x)); });
+    return h('section', { class: 'card' }, h('h2', null, '📌 Termine', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => terminDialog(null, vorgabe) }, '+ Termin')),
+      l.length ? h('div', { class: 'list' }, l.map(terminZeile)) : h('div', { class: 'empty' }, `Keine Termine in den nächsten ${tage} Tagen.`));
+  }
+  function viewTermine() {
+    const kommend = termineSortiert(x => tageBis(x.datum) >= 0), vorbei = termineSortiert(x => tageBis(x.datum) < 0).reverse().slice(0, 20);
+    return [h('div', { class: 'crumb' }, '⌂ Übersicht › Termine'), h('h1', null, 'Termine'),
+      h('section', { class: 'card' }, h('h2', null, 'Kommend', h('span', { class: 'grow' }), h('button', { class: 'primary small', onclick: () => terminDialog() }, '+ Termin')),
+        kommend.length ? h('div', { class: 'list' }, kommend.map(terminZeile)) : h('div', { class: 'empty' }, 'Keine Termine.')),
+      vorbei.length ? h('section', { class: 'card' }, h('h2', null, 'Vergangen'), h('div', { class: 'list' }, vorbei.map(terminZeile))) : null];
+  }
+  async function notizDialog(x, vorgabe) {
+    const v = await formular(x ? 'Notiz bearbeiten' : 'Neue Notiz an die Pinnwand', [
+      { k: 'text', label: 'Text', type: 'textarea', req: true },
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– allgemein –') },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+    ], x || vorgabe || {}, { loeschen: !!x, hinweis: 'Für Absprachen im Team: z. B. „ET 3A: Ohmsches Gesetz fertig, FR kann mit Leistungsberechnung starten.“' });
+    if (v === 'del') drop('notizen', x.id); else if (v) put('notizen', Object.assign({}, x || {}, v));
+  }
+  function pinZeile(x) {
+    return h('div', { class: 'pin' }, h('div', { class: 'txt' }, x.text),
+      h('div', { class: 'm' }, h('span', null, (x.autor || '?') + ' · ' + new Date(x.upd).toLocaleDateString('de-DE')), x.fach ? F(x.fach) : null, x.klasse ? h('span', null, x.klasse) : null,
+        h('span', { class: 'grow' }), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => notizDialog(x) }, '✎')));
+  }
+  function cardPinnwand(max, filter, vorgabe) {
+    const l = alive('notizen').filter(x => typeof x.text === 'string' && (!filter || filter(x))).sort((a, b) => b.upd - a.upd);
+    return h('section', { class: 'card' }, h('h2', null, '💬 Pinnwand', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => notizDialog(null, vorgabe) }, '+ Notiz'),
+      max && l.length > max ? h('a', { href: '#/pinnwand', style: 'font-size:13px' }, 'alle ›') : null),
+      l.length ? h('div', { class: 'list' }, l.slice(0, max || 999).map(pinZeile)) : h('div', { class: 'empty' }, 'Noch keine Notizen.'));
+  }
+
+  // ---------- Fach ----------
+  function viewFach(k) {
+    const f = E.fach(k);
+    if (f.fremd) return [h('h1', null, 'Fach nicht gefunden')];
+    const ks = [...new Set([...S.plan.filter(e => e.fach === k).map(e => e.klasse.trim()), ...alive('stoff').filter(x => x.fach === k).map(x => x.klasse.trim())].filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+    let sel = S.ui.fk[k];
+    if (!sel || !ks.some(x => norm(x) === norm(sel))) sel = ks[0] || '';
+    const w = [h('div', { class: 'crumb' }, '⌂ Fächer › ' + f.name), h('h1', { style: fachC(k) }, f.icon + ' ' + f.name),
+      h('div', { class: 'chips', style: 'padding:0' }, ks.map(x => h('button', { class: 'chip' + (norm(x) === norm(sel) ? ' on' : ''), onclick: () => { S.ui.fk[k] = x; save(true); render(); } }, x)),
+        h('button', { class: 'chip', onclick: async () => { const v = await formular('Klasse hinzufügen', [{ k: 'klasse', label: 'Klasse', req: true, ph: 'z. B. 2B' }], {}, { ok: 'Weiter' }); if (v) { S.ui.fk[k] = v.klasse; save(true); stoffDialog(k, v.klasse); } } }, '+ Klasse'))];
+    if (sel) w.push(cardStoff(k, sel));
+    else w.push(h('div', { class: 'card' }, h('div', { class: 'empty' }, 'Noch keine Klasse. Trag sie im Stundenplan ein oder füge sie oben hinzu.')));
+    const lehrer = alive('personen').filter(p => Array.isArray(p.faecher) && p.faecher.includes(k));
+    w.push(h('div', { class: 'two' }, cardPinnwand(5, x => x.fach === k, { fach: k, klasse: sel }), cardTermine(60, x => x.fach === k, { fach: k, klasse: sel })));
+    w.push(h('section', { class: 'card' }, h('h2', null, '👥 Wer unterrichtet ' + f.name + '?'),
+      lehrer.length ? h('div', { class: 'list' }, lehrer.map(p => h('div', { class: 'row' }, h('b', null, p.name), p.klassen ? h('span', { class: 'note' }, p.klassen) : null)))
+        : h('div', { class: 'empty' }, ['Noch niemand eingetragen. ', h('a', { href: '#/team' }, 'Team pflegen ›')])));
+    return w;
+  }
+  async function stoffDialog(fachK, klasse, x) {
+    const v = await formular(x ? 'Thema bearbeiten' : 'Neues Thema', [
+      { k: 'titel', label: 'Thema', req: true, ph: 'z. B. Zündanlage – Aufbau und Funktion' },
+      { k: 'std', label: 'Geplante Stunden', type: 'number', min: '0', step: '1', def: '2' },
+      { k: 'status', label: 'Stand', type: 'select', options: [['offen', 'offen'], ['laeuft', 'läuft'], ['fertig', 'fertig']] },
+      { k: 'hinweis', label: 'Hinweis (Material, Lernziel, Absprache)', type: 'textarea' },
+    ], x || {}, { loeschen: !!x });
+    if (v === 'del') return drop('stoff', x.id);
+    if (!v) return;
+    const pos = x ? x.pos : Math.max(0, ...stoffVon(fachK, klasse).map(s => s.pos || 0)) + 1;
+    put('stoff', Object.assign({}, x || {}, v, { fach: fachK, klasse: x ? x.klasse : klasse, pos, std: Math.max(0, parseInt(v.std, 10) || 0) }));
+  }
+  function cardStoff(k, kl) {
+    const l = stoffVon(k, kl), cur = l.find(x => x.status !== 'fertig');
+    const fertig = l.filter(x => x.status === 'fertig').length, stdPlan = l.reduce((a, x) => a + (+x.std || 0), 0), stdIst = l.reduce((a, x) => a + gebraucht(x.id), 0);
+    const tausch = (a, b) => { const pa = a.pos || 0, pb = b.pos || 0; put('stoff', Object.assign({}, a, { pos: pb === pa ? pb + 1 : pb }), true); put('stoff', Object.assign({}, b, { pos: pa })); };
+    const andere = [...new Set(alive('stoff').filter(x => x.fach === k && norm(x.klasse) !== norm(kl)).map(x => x.klasse.trim()))];
+    const stLabel = { offen: ['offen', 'mut'], laeuft: ['läuft', 'warn'], fertig: ['fertig', 'good'] };
+    return h('section', { class: 'card', style: fachC(k) }, h('h2', null, `📚 Stoffverteilung ${kl}`, h('span', { class: 'grow' }),
+      andere.length ? h('button', { class: 'small', onclick: async () => {
+        const v = await formular('Themen übernehmen', [{ k: 'von', label: 'Aus Klasse', type: 'select', options: andere.map(a => [a, a]) }], {}, { ok: 'Übernehmen', hinweis: `Kopiert die Themen als „offen“ nach ${kl}. Vorhandene Themen bleiben.` });
+        if (!v) return; let p = Math.max(0, ...l.map(s => s.pos || 0));
+        stoffVon(k, v.von).forEach(s => put('stoff', { fach: k, klasse: kl, titel: s.titel, std: s.std, hinweis: s.hinweis, status: 'offen', pos: ++p }, true)); render();
+      } }, '⇣ Aus anderer Klasse') : null,
+      h('button', { class: 'small primary', onclick: () => stoffDialog(k, kl) }, '+ Thema')),
+      h('p', { class: 'note' }, l.length ? `${fertig} von ${l.length} Themen fertig · ${stdIst} von ${stdPlan} geplanten Stunden gebraucht` : 'Noch keine Themen. Die Reihenfolge hier bestimmt, welches Thema nach „geschafft“ als nächstes kommt.'),
+      l.length ? h('div', { class: 'scroll' }, h('table', { class: 'tbl' },
+        h('thead', null, h('tr', null, h('th', null, '#'), h('th', null, 'Thema'), h('th', null, 'Std.'), h('th', null, 'Stand'), h('th', null, ''))),
+        h('tbody', null, l.map((x, i) => {
+          const g = gebraucht(x.id), st = stLabel[x.status] || stLabel.offen;
+          return h('tr', { class: x === cur ? 'cur' : x.status === 'fertig' ? 'done' : '' },
+            h('td', { class: 'tm' }, i + 1),
+            h('td', null, h('div', { style: 'font-weight:600' }, x.titel, x === cur ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'aktuell') : null),
+              x.hinweis ? h('div', { class: 'note' }, x.hinweis) : null, x.von && x.von !== S.ich.name ? h('div', { class: 'note' }, 'geändert von ' + x.von) : null),
+            h('td', { class: 'tm', title: 'gebraucht / geplant' }, `${g} / ${x.std || 0}`, g > (+x.std || 0) && x.std ? h('span', { style: 'color:var(--crit)' }, ' !') : null),
+            h('td', null, h('button', { class: 'small badge ' + st[1], title: 'Stand wechseln', onclick: () => put('stoff', Object.assign({}, x, { status: x.status === 'offen' || !x.status ? 'laeuft' : x.status === 'laeuft' ? 'fertig' : 'offen' })) }, st[0])),
+            h('td', null, h('div', { class: 'btns', style: 'flex-wrap:nowrap' },
+              h('button', { class: 'small ghost', disabled: i === 0, 'aria-label': 'Nach oben', onclick: () => tausch(x, l[i - 1]) }, '↑'),
+              h('button', { class: 'small ghost', disabled: i === l.length - 1, 'aria-label': 'Nach unten', onclick: () => tausch(x, l[i + 1]) }, '↓'),
+              h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => stoffDialog(k, kl, x) }, '✎'))));
+        })))) : null);
+  }
+
+  // ---------- Klasse: alle Fächer auf einen Blick (Absprache unter Fachlehrern) ----------
+  function viewKlasse(kl) {
+    const w = [h('div', { class: 'crumb' }, '⌂ Meine Klassen › ' + kl), h('h1', null, 'Klasse ' + kl),
+      h('p', { class: 'note' }, 'Wo steht jedes Fach in dieser Klasse? So sieht man, ob z. B. Fachrechnen schon die Grundlagen für Elektrotechnik gelegt hat.')];
+    w.push(h('section', { class: 'card' }, h('h2', null, 'Stand pro Fach'), h('div', { class: 'list' }, E.alle().map(f => {
+      const l = stoffVon(f.k, kl); if (!l.length && !S.plan.some(e => e.fach === f.k && norm(e.klasse) === norm(kl))) return null;
+      const cur = l.find(x => x.status !== 'fertig'), fertig = l.filter(x => x.status === 'fertig').length;
+      const last = alive('log').filter(x => x.fach === f.k && norm(x.klasse) === norm(kl) && x.erg !== 'ignoriert').sort((a, b) => b.datum.localeCompare(a.datum))[0];
+      return h('a', { class: 'row', href: '#/fach/' + f.k, style: 'text-decoration:none;color:inherit', onclick: () => { S.ui.fk[f.k] = kl; save(true); } },
+        F(f.k), h('b', null, f.name), h('span', { class: 'topic grow' }, cur ? 'aktuell: ' + cur.titel : l.length ? 'alles fertig' : 'keine Stoffverteilung'),
+        l.length ? h('span', { class: 'tm' }, `${fertig}/${l.length}`) : null, last ? h('span', { class: 'note' }, `zuletzt ${tagLabel(last.datum)}: ${last.erg}`) : null);
+    }))));
+    w.push(h('div', { class: 'two' }, cardTermine(60, x => norm(x.klasse) === norm(kl), { klasse: kl }), cardPinnwand(6, x => norm(x.klasse) === norm(kl), { klasse: kl })));
+    return w;
+  }
+
+  // ---------- Stundenplan, Klingel, Erinnerungen ----------
+  async function planDialog(tag, slot) {
+    const x = S.plan.find(e => +e.tag === tag && String(e.nr) === String(slot.nr));
+    const v = await formular(`${WTL[tag]}, ${slot.nr}. Stunde (${slot.start}–${slot.ende})`, [
+      { k: 'fach', label: 'Fach', type: 'select', options: fachOptionen('– frei –') },
+      { k: 'klasse', label: 'Klasse', ph: 'z. B. 3A', list: klassen() },
+      { k: 'raum', label: 'Raum / Werkstatt' },
+      { k: 'woche', label: 'Raum für alle Stunden dieser Klasse mit gleichem Fach übernehmen', type: 'checkbox' },
+    ], x || {}, { loeschen: !!x });
+    S.plan = S.plan.filter(e => !(+e.tag === tag && String(e.nr) === String(slot.nr)));
+    if (v && v !== 'del' && v.fach) {
+      S.plan.push({ tag, nr: String(slot.nr), fach: v.fach, klasse: v.klasse, raum: v.raum });
+      if (v.woche) S.plan.forEach(e => { if (e.fach === v.fach && norm(e.klasse) === norm(v.klasse)) e.raum = v.raum; });
+      if (!S.ui.seit) S.ui.seit = heute();
+    } else if (!v && x) S.plan.push(x);
+    save(true); render();
+  }
+  const wochentage = () => {
+    const t = [1, 2, 3, 4, 5];
+    if (S.plan.some(e => +e.tag === 6) || S.bell.some(b => Array.isArray(b.tage) && b.tage.includes(6))) t.push(6);
+    return t;
+  };
+  const montag = () => addTage(new Date(), -((new Date().getDay() + 6) % 7));
+
+  function viewPlan() {
+    const tage = wochentage(), off = +S.ui.woche || 0, mo = addTage(montag(), off * 7), kalAn = !!(E.kal() && E.kal().von);
+    const ddmm = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
+    const woche = n => () => { S.ui.woche = n; save(true); render(); };
+    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Stundenplan'), h('h1', null, 'Stundenplan & Klingel')];
+
+    // Woche: eine Spalte pro Tag, jeder Tag mit seinen eigenen Klingelzeiten bzw. den WebUntis-Stunden
+    w.push(h('section', { class: 'card' }, h('h2', null, '🗓 Woche', h('span', { class: 'note' }, `${ddmm(mo)} – ${ddmm(addTage(mo, tage[tage.length - 1] - 1))}`), h('span', { class: 'grow' }),
+        h('button', { class: 'small', 'aria-label': 'Vorige Woche', onclick: woche(off - 1) }, '‹'),
+        off ? h('button', { class: 'small', onclick: woche(0) }, 'Diese Woche') : null,
+        h('button', { class: 'small', 'aria-label': 'Nächste Woche', onclick: woche(off + 1) }, '›')),
+      h('p', { class: 'note' }, kalAn ? 'Stunden mit 📅 kommen aus WebUntis – antippen, um das Fach zuzuordnen. Tage außerhalb des WebUntis-Kalenders nutzen die Wochenvorlage (Feld antippen zum Eintragen).'
+        : 'Stunde antippen zum Eintragen (gilt jede Woche). Bei Pausen „Aufsicht“ anhaken – dann kommt vorher eine Erinnerung.'),
+      h('div', { class: 'scroll' }, h('div', { class: 'week', style: `--n:${tage.length}` }, tage.map(t => {
+        const dt = addTage(mo, t - 1), sl = E.tag(dt, S);
+        return h('div', { class: 'day' }, h('h3', { class: iso(dt) === heute() ? 'heute' : '' }, `${WT[t]} ${ddmm(dt)}`),
+          sl.length ? sl.map(x => {
+            if (x.typ === 'feierabend') return h('div', { class: 'fa' }, `🏁 ${x.name || 'Feierabend'} ${x.von}`);
+            if (x.typ === 'pause' && x.kal) return h('button', { class: 'pz', style: 'text-align:left;border-color:var(--warn)', onclick: () => zuordnenDialog(x.key, x.titel || 'Pausenaufsicht') },
+              h('span', { style: 'color:var(--warn);font-weight:600' }, `👀 Pausenaufsicht ${x.von}–${x.bis}`), h('small', null, '📅 aus WebUntis'));
+            if (x.typ === 'pause') {
+              const id = t + '|' + x.von, on = S.aufsicht.includes(id);
+              return h('div', { class: 'pz' }, h('span', null, `${x.name || 'Pause'} ${x.von}–${x.bis}`),
+                h('label', null, h('input', { type: 'checkbox', checked: on, onchange: ev => { S.aufsicht = S.aufsicht.filter(a => a !== id); if (ev.target.checked) S.aufsicht.push(id); save(true); } }), 'Aufsicht'));
+            }
+            const e = x.eintrag;
+            if (x.kal) return h('button', { class: 'slot' + (e ? ' has' : '') + (x.entfall ? ' aus' : ''), style: e ? fachC(e.fach) : '', title: x.titel, onclick: () => zuordnenDialog(x.key, x.titel) },
+              h('span', { class: 'tm' }, `📅 ${x.von}–${x.bis}`),
+              x.entfall ? [h('span', { class: 'badge crit' }, 'entfällt'), h('small', { style: 'text-decoration:line-through' }, x.titel)]
+                : e ? [h('b', { class: 'fn' }, fachTitel(e)), h('small', null, [e.klasse, e.raum].filter(Boolean).join(' · '))]
+                  : h('small', null, (x.titel || '(ohne Titel)') + ' · ignoriert'),
+              h('small', { class: 'raw', title: 'So steht es in WebUntis' }, [x.titel, x.info].filter(Boolean).join(' · ')));
+            return h('button', { class: 'slot' + (e ? ' has' : ''), style: e ? fachC(e.fach) : '', onclick: () => planDialog(t, { nr: x.nr, start: x.von, ende: x.bis }) },
+              h('span', { class: 'tm' }, `${x.nr}. · ${x.von}–${x.bis}`),
+              e ? [h('b', { class: 'fn' }, E.fach(e.fach).icon + ' ' + E.fach(e.fach).name), h('small', null, [e.klasse, e.raum].filter(Boolean).join(' · '))] : h('small', null, '+'));
+          }) : h('div', { class: 'empty', style: 'text-align:center' }, 'keine Klingelzeiten'));
+      })))));
+
+    w.push(cardKlingel());
+    w.push(cardWebuntis());
+
+    // Erinnerungen
+    const es = S.einst;
+    const num = (k, lab) => h('label', null, h('input', { type: 'number', min: '0', max: '30', value: es[k], onchange: ev => { es[k] = Math.max(0, Math.min(30, parseInt(ev.target.value, 10) || 0)); save(true); } }), lab);
+    const chk = (k, lab) => h('label', null, h('input', { type: 'checkbox', checked: !!es[k], onchange: ev => { es[k] = ev.target.checked; save(true); render(); } }), lab);
+    const perm = 'Notification' in window ? Notification.permission : 'nicht verfügbar';
+    w.push(h('section', { class: 'card' }, h('h2', null, '⏰ Erinnerungen'),
+      h('div', { class: 'settings' },
+        chk('aktiv', 'Erinnerungen einschalten'), chk('ton', 'Mit Ton (Gong)'),
+        chk('erinStunde', '🔔 Stunde bald zu Ende (ein/aus)'), chk('erinPause', '☕ Pausen-Erinnerung (ein/aus)'),
+        num('vorEnde', 'Minuten vor Stundenende (0 = aus)'), chk('beiEnde', 'Beim Klingeln: „Stunde zu Ende“'),
+        chk('pauseBeginn', 'Pausenbeginn melden'), num('vorPauseEnde', 'Minuten vor Pausenende (0 = aus)'),
+        num('aufsichtVorher', 'Minuten vor Pausenaufsicht'), chk('feierabend', 'Erinnerung zum Feierabend'),
+        chk('nurEigene', 'Nur für eigene Stunden (sonst jede Klingel)')),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('span', { class: 'note' }, 'Systemmitteilungen: ' + (perm === 'granted' ? 'erlaubt ✓' : perm === 'denied' ? 'im Browser blockiert – in den Website-Einstellungen erlauben' : perm)),
+        perm === 'default' ? h('button', { class: 'small', onclick: () => Notification.requestPermission().then(render) }, 'Erlauben') : null,
+        h('button', { class: 'small', onclick: () => E.testen() }, 'Erinnerung testen')),
+      h('p', { class: 'note' }, 'Erinnerungen kommen nur, solange diese Seite oder der Timer geöffnet ist (auch im Hintergrund). Sind beide offen, kommt jede Erinnerung trotzdem nur einmal.')));
+    return w;
+  }
+
+  // ---------- Klingelzeiten: jede Zeile gilt für ihre Wochentage (wie ein Wecker am Handy) ----------
+  const tageVon = b => Array.isArray(b.tage) ? b.tage : [1, 2, 3, 4, 5, 6];
+  function konflikte() {
+    const bad = new Set();
+    for (let t = 1; t <= 6; t++) {
+      const l = S.bell.map((b, i) => ({ b, i })).filter(({ b }) => b.typ !== 'feierabend' && tageVon(b).includes(t) && E.hm(b.start) != null && E.hm(b.ende) > E.hm(b.start))
+        .sort((x, y) => E.hm(x.b.start) - E.hm(y.b.start));
+      for (let k = 1; k < l.length; k++) if (E.hm(l[k].b.start) < E.hm(l[k - 1].b.ende)) { bad.add(l[k].i); bad.add(l[k - 1].i); }
+      const fa = S.bell.filter(b => b.typ === 'feierabend' && tageVon(b).includes(t));
+      if (fa.length > 1) S.bell.forEach((b, i) => { if (fa.includes(b)) bad.add(i); });
+    }
+    return bad;
+  }
+  function cardKlingel() {
+    const raw = S.bell, bt = +S.ui.bellTag || 0, bad = konflikte();
+    const setBell = () => { S.bell = raw; save(true); render(); };
+    const neu = typ => {
+      const tg = bt ? [bt] : E.MOFR.slice();
+      raw.push(typ === 'stunde' ? { typ, nr: String(raw.filter(b => b.typ === 'stunde').length + 1), start: '', ende: '', tage: tg }
+        : typ === 'pause' ? { typ, name: 'Pause', start: '', ende: '', tage: tg } : { typ, name: 'Feierabend', start: '', ende: '', tage: tg });
+      setBell();
     };
-    setTimeout(applyMode, 0);
+    const zeilen = raw.map((b, i) => ({ b, i })).filter(({ b }) => !bt || tageVon(b).includes(bt))
+      .sort((x, y) => (E.hm(x.b.start) ?? 9999) - (E.hm(y.b.start) ?? 9999) || (x.b.typ === 'feierabend') - (y.b.typ === 'feierabend') || x.i - y.i);
+    return h('section', { class: 'card' }, h('h2', null, '🔔 Klingelzeiten', h('span', { class: 'grow' }),
+      h('button', { class: 'small', onclick: () => neu('stunde') }, '+ Stunde'),
+      h('button', { class: 'small', onclick: () => neu('pause') }, '+ Pause'),
+      h('button', { class: 'small', onclick: () => neu('feierabend') }, '+ Feierabend'),
+      h('button', { class: 'small', onclick: async () => { const v = await formular('Vorlage laden', [], {}, { ok: 'Vorlage laden', hinweis: 'Ersetzt alle Klingelzeiten durch die Vorlage (Mo–Fr, Vormittags-, Mittags- und Nachmittagspause, Feierabend). Der Stundenplan bleibt, er hängt an der Stunden-Nummer.' }); if (v) { S.bell = E.vorlage(); save(true); render(); } } }, 'Vorlage')),
+      h('p', { class: 'note' }, 'Jede Zeile gilt an den blau markierten Tagen – wie ein Wecker am Handy. Ist z. B. die Mittagspause am Dienstag anders: oben „Di“ wählen, bei der Zeile „✂ nur Di“ tippen und die Zeit ändern. Rot umrandet = Zeiten überschneiden sich.'),
+      h('div', { class: 'seg', style: 'align-self:flex-start' }, [[0, 'Alle Tage'], [1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa']].map(([t, l]) =>
+        h('button', { class: bt === t ? 'on' : '', onclick: () => { S.ui.bellTag = t; save(true); render(); } }, l))),
+      zeilen.length ? h('div', { class: 'list' }, zeilen.map(({ b, i }) => {
+        const tg = tageVon(b), fa = b.typ === 'feierabend';
+        return h('div', { class: 'bellrow' + (bad.has(i) ? ' warn' : '') + (tg.length ? '' : ' leer') },
+          h('select', { 'aria-label': 'Art', value: b.typ, onchange: ev => {
+            b.typ = ev.target.value;
+            if (b.typ === 'feierabend') { b.name = 'Feierabend'; b.ende = ''; }
+            else if (b.typ === 'pause' && (!b.name || b.name === 'Feierabend')) b.name = 'Pause';
+            else if (b.typ === 'stunde' && !b.nr) b.nr = String(raw.filter(x => x.typ === 'stunde').length);
+            setBell();
+          } }, h('option', { value: 'stunde' }, 'Stunde'), h('option', { value: 'pause' }, 'Pause'), h('option', { value: 'feierabend' }, 'Feierabend')),
+          b.typ === 'stunde' ? h('input', { 'aria-label': 'Stunden-Nummer', placeholder: 'Nr.', value: b.nr || '', onchange: ev => { b.nr = ev.target.value.trim(); setBell(); } })
+            : h('input', { 'aria-label': 'Name', value: b.name || '', list: 'pausennamen', onchange: ev => { b.name = ev.target.value.trim(); setBell(); } }),
+          h('input', { type: 'time', 'aria-label': fa ? 'Uhrzeit' : 'Beginn', value: b.start || '', onchange: ev => { b.start = ev.target.value; setBell(); } }),
+          fa ? h('span') : h('input', { type: 'time', 'aria-label': 'Ende', value: b.ende || '', onchange: ev => { b.ende = ev.target.value; setBell(); } }),
+          h('span', { class: 'wd', role: 'group', 'aria-label': 'Wochentage' }, [1, 2, 3, 4, 5, 6].map(t => h('button', {
+            class: tg.includes(t) ? 'on' : '', title: WTL[t], 'aria-pressed': tg.includes(t) ? 'true' : 'false',
+            onclick: () => { b.tage = tg.includes(t) ? tg.filter(x => x !== t) : [...tg, t].sort(); setBell(); } }, WT[t]))),
+          h('span', { class: 'btns' },
+            bt && tg.length > 1 ? h('button', { class: 'small', title: `Für ${WTL[bt]} eine eigene Zeile anlegen, die du getrennt ändern kannst`,
+              onclick: () => { b.tage = tg.filter(x => x !== bt); raw.push(Object.assign({}, b, { tage: [bt] })); setBell(); } }, '✂ nur ' + WT[bt]) : null,
+            h('button', { class: 'small ghost', title: 'Duplizieren', 'aria-label': 'Duplizieren', onclick: () => { raw.splice(i + 1, 0, Object.assign({}, b, { tage: tg.slice() })); setBell(); } }, '⧉'),
+            h('button', { class: 'small ghost', title: 'Entfernen', 'aria-label': 'Entfernen', onclick: () => { raw.splice(i, 1); setBell(); } }, '✕')));
+      })) : h('div', { class: 'empty' }, 'An diesem Tag keine Klingelzeiten.'),
+      h('datalist', { id: 'pausennamen' }, ['Vormittagspause', 'Mittagspause', 'Nachmittagspause', 'Pause'].map(v => h('option', { value: v }))));
   }
 
-  // ---------- Verdrahtung ----------
-  $('startBtn').onclick = toggle; $('nextBtn').onclick = next; $('prevBtn').onclick = prev;
-  $('plusBtn').onclick = plus; $('fitBtn').onclick = fit; $('resetBtn').onclick = () => reset(false); $('fsBtn').onclick = toggleFs;
-  $('addBtn').onclick = () => { S.phases.push({ name: 'Phase ' + (S.phases.length + 1), sec: 300 }); save(); renderList(); tick(); };
-  $('soundBtn').onclick = () => { S.sound = !S.sound; if (S.sound) initAudio(); save(); renderList(); };
-  const tplMin = () => Math.round(parseFloat($('tplMin').value) || 0);
-  $('avivaBtn').onclick = () => { const m = tplMin(); if (m < 10) { $('tplMin').value = 10; return; } S.phases = avivaPlan(m); save(); renderList(); tick(); };
-  $('singleBtn').onclick = () => { const m = tplMin(); if (m < 1) return; S.phases = [{ name: 'Timer', sec: m * 60 }]; save(); renderList(); tick(); };
-  $('endClock').onchange = () => { S.endClock = $('endClock').value; save(); tick(); };
-  $('endClear').onclick = () => { S.endClock = ''; save(); renderList(); tick(); };
-  $('time').addEventListener('dblclick', toggleFs);
-  $('favSave').onclick = saveFav;
-  $('favName').addEventListener('keydown', e => { if (e.key === 'Enter') saveFav(); });
+  // ---------- WebUntis: iCal-Link oder .ics-Datei ----------
+  // Kalender als feste Wochenvorlage übernehmen (für Zeiten ohne aktuellen WebUntis-Kalender)
+  async function icsImport(roh) {
+    const ev = roh.filter(e => !e.aus).map(e => ({ start: new Date(e.s), ende: new Date(e.e), sum: e.sum, ort: e.ort, besch: e.besch }));
+    if (!ev.length) throw new Error('In der Datei sind keine Stunden mit Uhrzeit.');
+    // Bezugswoche: die Woche mit den meisten Stunden ab dieser Woche (sonst die vollste überhaupt)
+    const wkey = d => iso(addTage(d, -((d.getDay() + 6) % 7)));
+    const wochen = new Map();
+    ev.forEach(e => { const k = wkey(e.start); wochen.set(k, (wochen.get(k) || 0) + 1); });
+    const ab = iso(montag());
+    const kand = [...wochen].filter(([k]) => k >= ab).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 6);
+    const pool = kand.length ? kand : [...wochen];
+    const woche = pool.reduce((a, b) => b[1] > a[1] ? b : a)[0];
+    const wk = ev.filter(e => wkey(e.start) === woche && e.start.getDay() >= 1 && e.start.getDay() <= 6);
 
-  document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
-    const k = e.key.toLowerCase();
-    if (e.code === 'Space') { e.preventDefault(); toggle(); }
-    else if (k === 'n' || e.key === 'ArrowRight') next();
-    else if (e.key === 'ArrowLeft') prev();
-    else if (k === 'r') reset(false);
-    else if (k === 'f') toggleFs();
-    else if (k === 'm' && !window.desk) togglePip();
-    else if (e.key === 'Escape' && document.body.classList.contains('fs')) (deskFs ? deskFs() : setFs(false));
+    // gleiche Fach/Klasse-Kombination nur einmal zuordnen
+    const combos = new Map();
+    wk.forEach(e => { const k = e.sum + '|' + e.besch; if (!combos.has(k)) combos.set(k, { sum: e.sum, besch: e.besch, n: 0 }); combos.get(k).n++; });
+    const cl = [...combos.values()];
+    const felder = [];
+    cl.forEach((c, i) => {
+      felder.push({ k: 'f' + i, label: `„${c.sum || '(ohne Titel)'}“${c.besch ? ' – ' + c.besch.slice(0, 60) : ''} (${c.n}× pro Woche)`, type: 'select', options: fachOptionen('– nicht übernehmen –'), def: E.zuordnung(c, S).fach });
+      felder.push({ k: 'k' + i, label: 'Klasse', def: E.zuordnung(c, S).klasse, list: klassen() });
+    });
+    felder.push({ k: 'bell', label: 'Klingelzeiten dieser Tage aus WebUntis übernehmen (Pausen und Feierabend werden aus den Lücken abgeleitet)', type: 'checkbox', def: true });
+    const tageImp = [...new Set(wk.map(e => e.start.getDay()))].sort();
+    const mo = parseISO(woche);
+    const v = await formular('Aus WebUntis übernehmen', felder, {}, { ok: 'Übernehmen',
+      hinweis: `Woche ab ${pad(mo.getDate())}.${pad(mo.getMonth() + 1)}.: ${wk.length} Stunden an ${tageImp.map(t => WT[t]).join(', ')}. Ordne jeder Zeile dein Fach zu. Der bisherige Stundenplan dieser Tage wird ersetzt.` });
+    if (!v) return;
+
+    const zu = new Map(cl.map((c, i) => [c.sum + '|' + c.besch, { fach: v['f' + i], klasse: v['k' + i] }]));
+    S.ui.icalMap = Object.assign(S.ui.icalMap || {}, Object.fromEntries(zu));
+    const altBell = S.bell.map(b => Object.assign({}, b, { tage: tageVon(b).slice() }));
+    const neueBell = [], neuerPlan = [];
+    let ohneSlot = 0;
+    tageImp.forEach(t => {
+      const l = wk.filter(e => e.start.getDay() === t).sort((a, b) => a.start - b.start)
+        .filter((e, k, arr) => k === 0 || +e.start !== +arr[k - 1].start);
+      const hmv = d => uhr(d);
+      if (v.bell) {
+        const altTag = altBell.filter(b => b.tage.includes(t));
+        const altSt = altTag.filter(b => b.typ === 'stunde' && E.hm(b.start) != null && E.hm(b.ende) > E.hm(b.start));
+        const altFa = altTag.find(b => b.typ === 'feierabend');
+        const mins = d => d.getHours() * 60 + d.getMinutes();
+        const ueber = (b, e) => E.hm(b.start) < mins(e.ende) && E.hm(b.ende) > mins(e.start);
+        const benutzt = new Set();
+        // Stundennummer: gleiche Anfangszeit, sonst die erste überlappende Schulstunde, sonst fortlaufend
+        const nrFuer = e => {
+          const b = altSt.find(b => b.start === hmv(e.start) && !benutzt.has(String(b.nr))) || altSt.find(b => ueber(b, e) && !benutzt.has(String(b.nr)));
+          let nr = b ? String(b.nr) : '';
+          for (let z = 1; !nr || benutzt.has(nr); z++) nr = 'W' + z;
+          benutzt.add(nr); return nr;
+        };
+        // Schulstunden ohne eigenen Unterricht bleiben (Freistunden zum Eintragen)
+        l.forEach(e => nrFuer(e)); benutzt.clear();
+        const frei = altSt.filter(b => !l.some(e => ueber(b, e)));
+        l.forEach((e, k) => {
+          const von = hmv(e.start), bis = hmv(e.ende), nr = nrFuer(e);
+          neueBell.push({ typ: 'stunde', nr, start: von, ende: bis, tage: [t] });
+          const z = zu.get(e.sum + '|' + e.besch);
+          if (z && z.fach) neuerPlan.push({ tag: t, nr, fach: z.fach, klasse: z.klasse, raum: e.ort });
+          const nx = l[k + 1];
+          if (nx) {
+            const gap = (nx.start - e.ende) / 6e4, sm = e.ende.getHours() * 60 + e.ende.getMinutes(), em = sm + gap;
+            // bisherige Pausen der Schule behalten, wenn sie in diese Lücke fallen (WebUntis liefert nur die eigenen Stunden)
+            const alt = altTag.filter(b => b.typ === 'pause' && E.hm(b.start) >= sm && E.hm(b.start) < em);
+            alt.forEach(b => neueBell.push({ typ: 'pause', name: b.name || 'Pause', start: b.start, ende: E.hm(b.ende) <= em ? b.ende : hmv(nx.start), tage: [t] }));
+            const mittag = sm < 14 * 60 && em > 11 * 60 + 30 && gap >= 30;
+            if (!alt.length && gap >= 5 && (gap <= 35 || mittag))
+              neueBell.push({ typ: 'pause', name: mittag ? 'Mittagspause' : sm < 12 * 60 ? 'Vormittagspause' : 'Nachmittagspause', start: bis, ende: hmv(nx.start), tage: [t] });
+          }
+        });
+        frei.forEach(b => { if (!benutzt.has(String(b.nr))) { benutzt.add(String(b.nr)); neueBell.push({ typ: 'stunde', nr: String(b.nr), start: b.start, ende: b.ende, tage: [t] }); } });
+        const last = hmv(l[l.length - 1].ende);
+        neueBell.push({ typ: 'feierabend', name: 'Feierabend', start: altFa && altFa.start > last ? altFa.start : last, ende: '', tage: [t] });
+      } else {
+        const sl = E.tag(addTage(montag(), t - 1), S).filter(x => x.typ === 'stunde');
+        l.forEach(e => {
+          const z = zu.get(e.sum + '|' + e.besch); if (!z || !z.fach) return;
+          const von = e.start.getHours() * 60 + e.start.getMinutes(), bis = e.ende.getHours() * 60 + e.ende.getMinutes();
+          const treffer = sl.filter(x => E.hm(x.von) < bis && E.hm(x.bis) > von);
+          if (!treffer.length) ohneSlot++;
+          treffer.forEach(x => neuerPlan.push({ tag: t, nr: String(x.nr), fach: z.fach, klasse: z.klasse, raum: e.ort }));
+        });
+      }
+    });
+    if (v.bell) {
+      // importierte Tage aus den alten Zeilen herausnehmen, gleiche neue Zeilen über die Tage zusammenfassen
+      const rest = altBell.map(b => Object.assign(b, { tage: b.tage.filter(t => !tageImp.includes(t)) })).filter(b => b.tage.length);
+      const merged = new Map();
+      [...rest, ...neueBell].forEach(b => { const k = [b.typ, b.nr || '', b.name || '', b.start, b.ende].join('|'); if (merged.has(k)) merged.get(k).tage.push(...b.tage); else merged.set(k, b); });
+      merged.forEach(b => b.tage.sort());
+      S.bell = [...merged.values()];
+      S.aufsicht = S.aufsicht.filter(a => !tageImp.includes(+a.split('|')[0]) || S.bell.some(b => b.typ === 'pause' && tageVon(b).includes(+a.split('|')[0]) && b.start === a.split('|')[1]));
+    }
+    S.plan = S.plan.filter(e => !tageImp.includes(+e.tag)).concat(neuerPlan);
+    if (!S.ui.seit) S.ui.seit = heute();
+    S.ui.icalStand = Date.now();
+    save(true); render();
+    E.toast({ art: 'pause', titel: 'WebUntis übernommen', text: `${neuerPlan.length} Stunden eingetragen` + (ohneSlot ? `, ${ohneSlot} passten zu keiner Klingelzeit` : '') + '. Bitte im Wochenplan kontrollieren.' });
+  }
+  $('icsIn').onchange = async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    try { const k = E.kalenderSpeichern(await f.text()); render(); E.toast({ art: 'pause', titel: 'WebUntis-Kalender geladen', text: `${k.ev.length} Stunden bis ${tagLabel(k.bis)} – bitte die Zuordnung der Fächer prüfen.` }); }
+    catch (e) { E.toast({ art: 'ende', titel: 'WebUntis', text: String(e.message || e) }); }
+  };
+  const zuOptionen = () => [['', '– ignorieren (keine Erinnerung) –'], [E.VERTRETUNG, '🔁 Vertretung / nicht mein Fach (nur Erinnerung)'], [E.AUFSICHT, '👀 Pausenaufsicht'],
+    ...E.alle().map(f => [f.k, `${f.icon} ${f.name}`])];
+  async function zuordnenDialog(key, titel) {
+    const i = key.indexOf('|'), z = E.zuordnung({ sum: key.slice(0, i), besch: key.slice(i + 1) }, S);
+    const v = await formular(`WebUntis: „${titel || '–'}“`, [
+      { k: 'fach', label: 'Was ist das?', type: 'select', options: zuOptionen() },
+      { k: 'klasse', label: 'Klasse', list: klassen() },
+    ], z, { hinweis: 'Gilt für alle Stunden mit diesem WebUntis-Eintrag.' });
+    if (!v) return;
+    S.ui.icalMap = Object.assign(S.ui.icalMap || {}, { [key]: { fach: v.fach, klasse: v.klasse } });
+    save(true); render();
+  }
+  function cardWebuntis() {
+    const k = E.kal(), app = !!(window.desk && window.desk.ical);
+    const inp = h('input', { type: 'url', placeholder: 'https://…webuntis.com/WebUntis/Ical.do?…', value: S.ui.icalUrl || '', style: 'flex:1 1 260px', 'aria-label': 'iCal-Link aus WebUntis' });
+    const fehler = k && k.fehler && (!k.stand || k.fehlerAm > k.stand)
+      ? (k.fehler === 'BROWSER' ? 'Im Browser blockiert WebUntis den direkten Abruf. Lösung: die Windows-App (ruft den Link automatisch ab) oder die .ics-Datei hochladen.' : k.fehler) : '';
+    const abrufen = async ev => {
+      const b = ev.currentTarget; b.disabled = true; b.textContent = 'Lädt …';
+      S.ui.icalUrl = inp.value.trim(); save(true);
+      try { const r = await E.kalenderSync(true); if (r) E.toast({ art: 'pause', titel: 'WebUntis aktualisiert', text: `${r.ev.length} Stunden bis ${tagLabel(r.bis)}` }); }
+      catch (e) { /* Fehler steht in der Karte */ }
+      render();
+    };
+    const keys = new Map();
+    (k ? k.ev : []).filter(e => !e.aus).forEach(e => { const key = E.icsKey(e); if (!keys.has(key)) keys.set(key, { e, n: 0 }); keys.get(key).n++; });
+    const setMap = (key, m) => { S.ui.icalMap = Object.assign(S.ui.icalMap || {}, { [key]: m }); save(true); render(); };
+    return h('section', { class: 'card' }, h('h2', null, '📅 WebUntis-Kalender (immer aktuell)'),
+      h('p', { class: 'note' }, 'Den iCal-Link aus WebUntis einfügen – denselben, den du in Google Kalender verwendest. Er bleibt nur auf diesem Gerät und geht nicht in die Team-Datei. ' +
+        (app ? 'Die App ruft ihn automatisch alle 30 Minuten ab: Vertretungen und Entfälle sind damit drin.' : 'Hier im Browser geht der automatische Abruf vermutlich nicht – dafür die Windows-App nutzen oder die .ics-Datei hochladen.')),
+      h('div', { class: 'row', style: 'background:none;padding:0' }, inp,
+        h('button', { class: 'primary small', onclick: abrufen }, 'Speichern & abrufen'),
+        h('button', { class: 'small', onclick: () => $('icsIn').click() }, '.ics-Datei hochladen')),
+      k && k.von ? h('p', { class: 'note', style: 'color:var(--good)' }, `✓ Stand ${new Date(k.stand).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} · ${k.ev.length} Stunden vom ${tagLabel(k.von)} bis ${tagLabel(k.bis)}. An diesen Tagen gilt WebUntis statt der Wochenvorlage.`)
+        : h('p', { class: 'note' }, 'Noch kein Kalender geladen – es gilt die Wochenvorlage.'),
+      fehler ? h('p', { class: 'note', style: 'color:var(--crit)' }, '⚠ ' + fehler) : null,
+      keys.size ? [h('div', { class: 'grp' }, 'Zuordnung: WebUntis → Fach'),
+        h('div', { class: 'list' }, [...keys].sort((a, b) => b[1].n - a[1].n).map(([key, { e, n }]) => {
+          const z = E.zuordnung(e, S);
+          return h('div', { class: 'row' },
+            h('span', { class: 'grow', style: 'min-width:160px' }, h('b', null, e.sum || '(ohne Titel)'), e.besch ? h('span', { class: 'note' }, ' ' + e.besch.slice(0, 60)) : null, h('span', { class: 'note' }, ` · ${n}×`)),
+            h('select', { 'aria-label': 'Fach', value: z.fach, onchange: ev => setMap(key, { fach: ev.target.value, klasse: z.klasse }) }, zuOptionen().map(([v2, l]) => h('option', { value: v2 }, l))),
+            h('input', { 'aria-label': 'Klasse', placeholder: 'Klasse', value: z.klasse, style: 'width:110px', onchange: ev => setMap(key, { fach: z.fach, klasse: ev.target.value.trim() }) }),
+            z.fest ? null : h('span', { class: 'badge warn', title: 'Automatisch erkannt – bitte prüfen' }, 'Vorschlag'));
+        }))] : null,
+      k && k.ev.length ? h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'small', onclick: () => icsImport(k.ev) }, 'Als feste Wochenvorlage übernehmen'),
+        h('button', { class: 'small danger', onclick: () => { E.kalenderEntfernen(); render(); } }, 'Kalender entfernen')) : null);
+  }
+
+  // ---------- Team & Austausch ----------
+  let fh = null; // Datei-Handle der Team-Datei
+  const fsOk = 'showOpenFilePicker' in window && 'indexedDB' in window;
+  const idb = (mode, fn) => new Promise((res, rej) => {
+    const r = indexedDB.open('kfz-arbeitsplatz', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => { const tx = r.result.transaction('kv', mode), q = fn(tx.objectStore('kv')); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); };
   });
-
-  // ---------- Verbindung zum Arbeitsplatz: Klingelzeiten und Erinnerungen ----------
-  const ERIN = window.Erinnerung;
-  function uebernehmen(ende, titel) {
-    if (!/^\d\d:\d\d$/.test(ende || '')) return;
-    if (S.status !== 'idle') { $('bellNote').textContent = `Stundenende ${ende} erst nach dem Zurücksetzen übernehmbar.`; return; }
-    S.endClock = ende; save(); renderList(); tick();
-    $('bellNote').textContent = `Stundenende ${ende}` + (titel ? ` (${titel})` : '') + ' aus dem Stundenplan.';
-  }
-  if (ERIN) {
-    ERIN.starten();
-    $('endBell').onclick = () => {
-      const k = ERIN.klingel(Date.now());
-      if (k) uebernehmen(k.bis, k.titel); else $('bellNote').textContent = 'Heute keine Stunde mehr laut Klingelzeiten.';
-    };
+  let syncInfo = '';
+  async function abgleichen(interaktiv) {
+    if (!fh) return;
     try {
-      const q = new URLSearchParams(location.search);
-      if (q.get('ende')) { uebernehmen(q.get('ende'), q.get('titel') || ''); history.replaceState(null, '', location.pathname); }
-    } catch (e) {}
-    if (desk && desk.onAuftrag) desk.onAuftrag((ende, titel) => uebernehmen(ende, titel));
-  } else { $('endBell').hidden = true; }
-  $('wsBtn').onclick = () => { if (desk && desk.arbeitsplatz) desk.arbeitsplatz(); else window.open('arbeitsplatz.html', 'arbeitsplatz'); };
-
-  // ---------- Pausen aus den Klingelzeiten: Vorwarnung und Blinken im Fenster ----------
-  // Quelle sind die Klingelzeiten im Arbeitsplatz (pro Wochentag, auch aus WebUntis). Anders als die
-  // kurzen Hinweise aus erinnerung.js erscheint jede Pause des Tages, auch ohne eigenen Unterricht davor.
-  const PKEY = 'unterrichtstimer.pausen', OK_KEY = 'unterrichtstimer.pausen-ok';
-  let P = { an: true, vorher: 5 }, okIds = [], pausen = [], pausenAm = 0, pausenTag = '', brkNow = null, brkGemeldet = '';
-  try {
-    const j = JSON.parse(localStorage.getItem(PKEY) || 'null');
-    if (j) P = { an: j.an !== false, vorher: Math.min(30, Math.max(0, Math.round(+j.vorher) || 0)) };
-    const a = JSON.parse(localStorage.getItem(OK_KEY) || '[]');
-    if (Array.isArray(a)) okIds = a.filter(x => typeof x === 'string');
-  } catch (e) {}
-  const saveP = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch (e) {} };
-  const pzName = p => p.aufsicht && !/aufsicht/i.test(p.name) ? p.name + ' (Aufsicht)' : p.name;
-  const pzIcon = p => p.aufsicht ? '👀' : '☕';
-
-  function pausenHeute(now) {
-    const heute = ERIN.datum(now);
-    if (now - pausenAm < 15000 && heute === pausenTag) return pausen;
-    pausenAm = now; pausenTag = heute; pausen = [];
-    let text;
-    try {
-      const s = ERIN.laden(), E = s.einst;
-      if (E.aktiv === false) text = 'Erinnerungen sind im Arbeitsplatz ausgeschaltet.';
-      else if (E.stillAm === heute) text = 'Heute stumm geschaltet (Arbeitsplatz).';
-      else {
-        pausen = ERIN.tag(now, s).filter(x => x.typ === 'pause' && !x.entfall && x.ende > x.start)
-          .map(x => ({ name: x.name || 'Pause', von: x.von, bis: x.bis, start: x.start, ende: x.ende, aufsicht: !!x.aufsicht, key: heute + '|' + x.von }));
-        text = pausen.length ? 'Heute: ' + pausen.map(p => `${pzIcon(p)} ${pzName(p)} ${p.von}–${p.bis}`).join(' · ')
-          : 'Heute keine Pausen in den Klingelzeiten.';
+      let p = await fh.queryPermission({ mode: 'readwrite' });
+      if (p !== 'granted') {
+        if (!interaktiv) { syncInfo = 'Zugriff abgelaufen – „Jetzt abgleichen“ klicken.'; renderSide(); if (route()[0] === 'team') render(); return; }
+        p = await fh.requestPermission({ mode: 'readwrite' });
+        if (p !== 'granted') { syncInfo = 'Zugriff verweigert.'; render(); return; }
       }
-    } catch (e) { text = 'Die Klingelzeiten konnten nicht gelesen werden.'; }
-    $('pzListe').textContent = text + ' Zeiten ändern: 🏠 Arbeitsplatz → Klingelzeiten.';
-    return pausen;
-  }
-
-  function pausenZeigen(now) {
-    let st = null;
-    if (ERIN && P.an) {
-      const lead = P.vorher * 60000;
-      for (const p of pausenHeute(now)) {
-        if (now >= p.start && now < p.ende) { st = { art: okIds.includes(p.key) ? 'laeuft' : 'jetzt', p }; break; }
-        if (lead && now >= p.start - lead && now < p.start) { st = { art: 'bald', p }; break; }
+      const txt = await (await fh.getFile()).text();
+      let n = 0, alt = '';
+      if (txt.trim()) {
+        const j = JSON.parse(txt);
+        if (!j || j.format !== FORMAT) throw new Error('Die Datei ist keine Team-Datei dieses Programms.');
+        n = merge(j.team); alt = JSON.stringify(j.team);
       }
-    } else if (ERIN) pausenHeute(now);
-    brkNow = st;
-    const el = $('brk');
-    el.hidden = !st;
-    document.body.classList.toggle('hasbrk', !!st);
-    document.body.classList.toggle('brkalert', !!st && st.art === 'jetzt');
-    if (!st) return;
-    const p = st.p, kopf = `${pzIcon(p)} ${pzName(p)}`;
-    el.dataset.art = st.art;
-    $('brkTxt').textContent = st.art === 'bald' ? `${kopf} in ${fmt(p.start - now, true)}`
-      : st.art === 'jetzt' ? `${kopf}! Bis ${p.bis}` : `${kopf} · noch ${fmt(p.ende - now, true)}`;
-    $('brkOk').hidden = st.art !== 'jetzt';
-    if (st.art === 'jetzt' && brkGemeldet !== p.key) {
-      brkGemeldet = p.key;
-      // Ton nur, wenn nicht schon der Gong aus erinnerung.js zur selben Zeit kommt
-      let gong = false;
-      try { const s = ERIN.laden(); gong = s.einst.ton && ERIN.ereignisse(now, s).some(e => (e.art === 'ende' || e.art === 'pause') && Math.abs(e.t - p.start) < 60000); } catch (e) {}
-      if (!gong) { initAudio(); beep(); }
-      try { if (desk && desk.aufmerksam) desk.aufmerksam(); } catch (e) {}
+      const neu = paket();
+      if (JSON.stringify(neu.team) !== alt) { const wr = await fh.createWritable(); await wr.write(JSON.stringify(neu)); await wr.close(); }
+      S.ui.sync = Date.now(); save(true);
+      syncInfo = `Abgeglichen um ${uhr(Date.now())}` + (n ? ` · ${n} Änderungen von Kollegen übernommen` : '');
+      if (n || interaktiv) render(); else renderSide();
+    } catch (e) {
+      syncInfo = 'Abgleich fehlgeschlagen: ' + (e && e.message || e);
+      if (interaktiv) E.toast({ art: 'ende', titel: 'Abgleich fehlgeschlagen', text: String(e && e.message || e) });
+      if (route()[0] === 'team') render();
     }
   }
-  function pauseOk() {
-    if (!brkNow) return;
-    const heute = ERIN.datum(Date.now());
-    okIds = okIds.filter(k => k.startsWith(heute)).concat(brkNow.p.key);
-    try { localStorage.setItem(OK_KEY, JSON.stringify(okIds)); } catch (e) {}
-    tick();
+  async function dateiVerbinden(neu) {
+    try {
+      const opts = { types: [{ description: 'Team-Datei', accept: { 'application/json': ['.json'] } }] };
+      const handle = neu ? await window.showSaveFilePicker(Object.assign({ suggestedName: 'kfz-team.json' }, opts)) : (await window.showOpenFilePicker(opts))[0];
+      fh = handle; await idb('readwrite', st => st.put(handle, 'teamdatei'));
+      await abgleichen(true);
+    } catch (e) { if (e && e.name !== 'AbortError') E.toast({ art: 'ende', titel: 'Team-Datei', text: String(e.message || e) }); }
   }
-  if (ERIN) {
-    $('pzAn').checked = P.an; $('pzVorher').value = P.vorher;
-    $('pzAn').onchange = () => { P.an = $('pzAn').checked; saveP(); tick(); };
-    $('pzVorher').onchange = () => { P.vorher = Math.min(30, Math.max(0, Math.round(+$('pzVorher').value) || 0)); $('pzVorher').value = P.vorher; saveP(); tick(); };
-    $('brkOk').onclick = pauseOk;
-  } else $('pausenBox').hidden = true;
+  function download(name, obj) {
+    const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: 'application/json' })), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  $('fileIn').onchange = async ev => {
+    const file = ev.target.files[0]; ev.target.value = ''; if (!file) return;
+    try {
+      const j = JSON.parse(await file.text());
+      if (j && j.format === FORMAT) { const n = merge(j.team); save(); render(); E.toast({ art: 'pause', titel: 'Import fertig', text: `${n} neue oder geänderte Einträge übernommen` + (j.von ? ` (von ${j.von})` : '') + '.' }); }
+      else if (j && j.format === 'kfz-arbeitsplatz-sicherung' && j.daten) {
+        const v = await formular('Sicherung wiederherstellen?', [], {}, { ok: 'Wiederherstellen', hinweis: 'Ersetzt Stundenplan, Klingelzeiten und Einstellungen. Team-Einträge werden zusammengeführt, nicht gelöscht.' });
+        if (!v) return;
+        const team = S.team; S = Object.assign(laden(), j.daten); S.team = team; COLS.forEach(c => { if (!Array.isArray(S.team[c])) S.team[c] = []; });
+        merge(j.daten.team || {}); (j.daten.team && COLS.forEach(c => (j.daten.team[c] || []).filter(x => valid(x) && x.privat && !S.team[c].some(y => y.id === x.id)).forEach(x => S.team[c].push(x))));
+        save(); render();
+      } else throw new Error('Unbekanntes Dateiformat.');
+    } catch (e) { E.toast({ art: 'ende', titel: 'Import fehlgeschlagen', text: String(e.message || e) }); }
+  };
+  async function personDialog(x) {
+    const v = await formular(x ? 'Kollegin/Kollege bearbeiten' : 'Kollegin/Kollege hinzufügen', [
+      { k: 'name', label: 'Name', req: true },
+      ...E.alle().map(f => ({ k: 'f_' + f.k, label: `${f.icon} ${f.name}`, type: 'checkbox' })),
+      { k: 'klassen', label: 'Klassen', ph: 'z. B. 1A, 2B, 3A' },
+      { k: 'kontakt', label: 'Kontakt (optional)', ph: 'Telefon oder E-Mail' },
+    ], x ? Object.assign({}, x, Object.fromEntries((x.faecher || []).map(k => ['f_' + k, true]))) : {}, { loeschen: !!x });
+    if (v === 'del') return drop('personen', x.id);
+    if (!v) return;
+    put('personen', Object.assign({}, x || {}, { name: v.name, klassen: v.klassen, kontakt: v.kontakt, faecher: E.alle().filter(f => v['f_' + f.k]).map(f => f.k) }));
+  }
+  async function fachDialog(x) {
+    const v = await formular(x ? 'Fach bearbeiten' : 'Fach hinzufügen', [
+      { k: 'k', label: 'Kürzel (2–5 Großbuchstaben/Ziffern, wie in WebUntis)', req: true, ph: 'z. B. GK' },
+      { k: 'name', label: 'Name', req: true, ph: 'z. B. Gemeinschaftskunde' },
+      { k: 'icon', label: 'Symbol (ein Emoji)', ph: '📘' },
+      { k: 'farbe', label: 'Farbe', type: 'color', def: '#94a3b8' },
+      { k: 'ende', label: 'Tipp kurz vor Stundenende (optional)' },
+    ], x || {}, { loeschen: !!x });
+    const liste = (Array.isArray(S.faecher) ? S.faecher : E.EXTRA_VORGABE).map(f => Object.assign({}, f)).filter(f => !x || f.k !== x.k);
+    if (v === 'del') { S.faecher = liste; save(true); render(); return; }
+    if (!v) return;
+    v.k = v.k.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+    if (!v.k || E.FAECHER.some(f => f.k === v.k) || liste.some(f => f.k === v.k)) { E.toast({ art: 'ende', titel: 'Fach', text: 'Dieses Kürzel gibt es schon oder es ist leer.' }); return; }
+    liste.push({ k: v.k, name: v.name, icon: v.icon || '📘', farbe: v.farbe, ende: v.ende });
+    S.faecher = liste; save(true); render();
+  }
+  function cardFaecher() {
+    return h('section', { class: 'card' }, h('h2', null, '📚 Fächer', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => fachDialog() }, '+ Fach')),
+      h('p', { class: 'note' }, 'Die fünf KFZ-Fächer sind fest. Weitere Fächer (z. B. Vertretungen) kannst du hier anlegen; das Kürzel hilft beim Erkennen in WebUntis.'),
+      h('div', { class: 'chips', style: 'padding:0' }, E.alle().map(f => f.extra
+        ? h('button', { class: 'chip', style: fachC(f.k), title: 'Bearbeiten', onclick: () => fachDialog(E.alle().find(y => y.k === f.k)) }, F(f.k), f.name, ' ✎')
+        : h('span', { class: 'chip' }, F(f.k), f.name))));
+  }
+  function viewTeam() {
+    const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Team'), h('h1', null, 'Team & Austausch')];
+    w.push(h('section', { class: 'card' }, h('h2', null, '👤 Ich'),
+      h('div', { class: 'settings' },
+        h('label', null, 'Name', h('input', { value: S.ich.name, placeholder: 'z. B. G. Peer', onchange: ev => { S.ich.name = ev.target.value.trim(); save(true); render(); } })),
+        h('label', null, 'Klassenvorstand', h('input', { value: S.ich.klasse, placeholder: 'z. B. 3A', onchange: ev => { S.ich.klasse = ev.target.value.trim(); save(true); } })),
+        h('label', null, 'Digitales Register', h('input', { type: 'url', value: S.ich.register || '', placeholder: 'https://deineschule.digitalesregister.it', onchange: ev => { S.ich.register = ev.target.value.trim(); save(true); renderSide(); } }))),
+      h('p', { class: 'note' }, 'Der Name steht bei deinen Einträgen, damit Kolleginnen und Kollegen sehen, von wem eine Änderung kommt.')));
 
-  renderList(); tick();
-  // Taktgeber im Worker: läuft auch dann sekundengenau, wenn der Tab im Hintergrund liegt
-  let fallback = null;
-  const useInterval = () => { if (!fallback) fallback = setInterval(tick, 250); };
-  try {
-    const w = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),250)'], { type: 'text/javascript' })));
-    w.onmessage = () => tick(); w.onerror = useInterval;
-  } catch (e) { useInterval(); }
+    w.push(cardFaecher());
+    w.push(h('section', { class: 'card' }, h('h2', null, '👥 Fachlehrer-Team', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => personDialog() }, '+ Person')),
+      alive('personen').length ? h('div', { class: 'list' }, alive('personen').sort((a, b) => a.name.localeCompare(b.name, 'de')).map(p => h('div', { class: 'row' },
+        h('b', null, p.name), (p.faecher || []).map(F), p.klassen ? h('span', { class: 'note' }, p.klassen) : null, p.kontakt ? h('span', { class: 'note' }, p.kontakt) : null,
+        h('span', { class: 'grow' }), h('button', { class: 'small ghost', 'aria-label': 'Bearbeiten', onclick: () => personDialog(p) }, '✎'))))
+        : h('div', { class: 'empty' }, 'Noch niemand eingetragen.')));
+
+    w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, '⇅ Gemeinsame Team-Datei'),
+      h('p', { class: 'note' }, 'So arbeitet ihr zusammen, ohne Server: Eine Datei kfz-team.json liegt in einem gemeinsamen Ordner (OneDrive, Teams, Google Drive oder Netzlaufwerk). Jede Person verbindet sie einmal. Danach gleicht das Programm Stoffverteilung, Pinnwand, Termine, Team-Aufgaben und Rückmeldungen jede Minute ab. Private To-dos, Stundenplan und Klingelzeiten bleiben auf deinem Gerät.'),
+      fsOk ? h('div', { class: 'row', style: 'background:none;padding:0' },
+        fh ? [h('span', null, '📄 ', h('b', null, fh.name)), h('button', { class: 'primary small', onclick: () => abgleichen(true) }, 'Jetzt abgleichen'),
+          h('button', { class: 'small', onclick: async () => { fh = null; await idb('readwrite', st => st.delete('teamdatei')); syncInfo = ''; render(); } }, 'Trennen')]
+          : [h('button', { class: 'primary small', onclick: () => dateiVerbinden(false) }, 'Vorhandene Team-Datei öffnen'), h('button', { class: 'small', onclick: () => dateiVerbinden(true) }, 'Neue Team-Datei anlegen')])
+        : h('p', { class: 'note', style: 'color:var(--warn)' }, 'Dieser Browser kann keine Datei dauerhaft verbinden (geht in Chrome und Edge am Computer). Nutze stattdessen Exportieren/Importieren.'),
+      syncInfo ? h('p', { class: 'note' }, syncInfo) : S.ui.sync ? h('p', { class: 'note' }, 'Zuletzt abgeglichen: ' + new Date(S.ui.sync).toLocaleString('de-DE')) : null));
+
+    w.push(h('section', { class: 'card' }, h('h2', null, '📦 Per Datei weitergeben'),
+      h('p', { class: 'note' }, 'Ohne gemeinsamen Ordner: Team-Daten exportieren und per Mail/Teams schicken. Beim Importieren wird zusammengeführt – nichts geht verloren, die neuere Änderung gewinnt.'),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'small', onclick: () => download(`kfz-team-${heute()}.json`, paket()) }, '⇡ Team-Daten exportieren'),
+        h('button', { class: 'small', onclick: () => $('fileIn').click() }, '⇣ Datei importieren'),
+        h('button', { class: 'small', onclick: () => download(`kfz-sicherung-${heute()}.json`, { format: 'kfz-arbeitsplatz-sicherung', version: 1, daten: Object.assign({}, S, { ui: Object.assign({}, S.ui, { icalUrl: undefined }) }) }) }, '💾 Komplette Sicherung'))));
+    return w;
+  }
+
+  // ---------- Suche ----------
+  function viewSuche(q) {
+    const t = q.toLowerCase(), has = (...v) => v.some(x => typeof x === 'string' && x.toLowerCase().includes(t));
+    const stoff = alive('stoff').filter(x => has(x.titel, x.hinweis, x.klasse, E.fach(x.fach).name));
+    const todos = todoGruppen().all.filter(x => has(x.titel, x.notiz, x.klasse));
+    const termine = alive('termine').filter(x => has(x.titel, x.klasse, x.art));
+    const notizen = alive('notizen').filter(x => has(x.text, x.klasse));
+    const w = [h('div', { class: 'crumb' }, '⌂ Suche'), h('h1', null, `Suche: „${q}“`)];
+    if (stoff.length) w.push(h('section', { class: 'card' }, h('h2', null, '📚 Themen'), h('div', { class: 'list' }, stoff.map(x =>
+      h('a', { class: 'row', href: '#/fach/' + x.fach, style: 'color:inherit;text-decoration:none', onclick: () => { S.ui.fk[x.fach] = x.klasse; save(true); } }, F(x.fach), h('span', { class: 'kl' }, x.klasse), h('span', null, x.titel), h('span', { class: 'badge mut' }, x.status || 'offen'))))));
+    if (todos.length) w.push(h('section', { class: 'card' }, h('h2', null, '✅ To-dos'), h('div', { class: 'list' }, todos.map(todoZeile))));
+    if (termine.length) w.push(h('section', { class: 'card' }, h('h2', null, '📌 Termine'), h('div', { class: 'list' }, termine.map(terminZeile))));
+    if (notizen.length) w.push(h('section', { class: 'card' }, h('h2', null, '💬 Pinnwand'), h('div', { class: 'list' }, notizen.map(pinZeile))));
+    if (w.length === 2) w.push(h('div', { class: 'empty' }, 'Nichts gefunden.'));
+    return w;
+  }
+  let qTimer = null;
+  $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { const v = $('q').value.trim(); location.hash = v ? '#/suche/' + encodeURIComponent(v) : '#/start'; }, 250); });
+
+  // ---------- Rendern ----------
+  function render() {
+    const [r, a] = route();
+    renderSide();
+    const main = $('main'), y = main.scrollTop;
+    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam,
+      pinnwand: () => [h('div', { class: 'crumb' }, '⌂ Organisation › Pinnwand'), h('h1', null, 'Pinnwand'), cardPinnwand(0)],
+      klasse: () => viewKlasse(a || ''), suche: () => viewSuche(a || '') };
+    main.textContent = '';
+    main.append(h('div', { class: 'wrap' }, (views[r] || viewStart)()));
+    main.scrollTop = y;
+  }
+  window.addEventListener('hashchange', () => { document.body.classList.remove('menu'); $('main').scrollTop = 0; render(); });
+  $('menuBtn').onclick = () => document.body.classList.toggle('menu');
+  document.addEventListener('click', e => { if (document.body.classList.contains('menu') && !e.target.closest('aside') && e.target !== $('menuBtn')) document.body.classList.remove('menu'); });
+  window.addEventListener('storage', e => { if (e.key === E.KEY && !$('dlg').open) { S = laden(); render(); } });
+  $('syncBtn').onclick = () => abgleichen(true);
+
+  // Takt: Uhr, Jetzt-Karte, Erinnerungen
+  let lastMin = -1;
+  function tick() {
+    const now = new Date();
+    $('clock').textContent = uhr(now);
+    const busy = $('dlg').open || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.id !== 'q');
+    if (route()[0] === 'start' && $('jetzt')) { const j = $('jetzt'); j.textContent = ''; j.append(...jetztInhalt()); }
+    if (now.getMinutes() !== lastMin) { lastMin = now.getMinutes(); todoErinnerungen(); if (!busy) render(); }
+  }
+  E.starten(e => { if (e && e.art === 'kalender' && !$('dlg').open) render(); });
+  setInterval(tick, 1000);
+  setInterval(() => { if (fh && !document.hidden) abgleichen(false); }, 60000);
+  if (fsOk) idb('readonly', st => st.get('teamdatei')).then(hd => { if (hd) { fh = hd; abgleichen(false); renderSide(); } }).catch(() => {});
+  render(); tick();
 })();
 </script>
 </body>
