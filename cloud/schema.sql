@@ -239,3 +239,74 @@ select cron.schedule('kfz-aufraeumen', '17 3 * * *', $cron$
   delete from public.push_gesendet where zeit < now() - interval '2 days';
   delete from net._http_response where created < now() - interval '1 day';
 $cron$);
+
+-- ---------------------------------------------------------------------------------------------
+-- Zugriff der Server-Programme ohne Server-Schlüssel (neue Supabase-Projekte geben den alten
+-- service_role-Schlüssel nicht mehr zuverlässig mit). Das Programm „erinnerungen“ benutzt den
+-- öffentlichen Schlüssel und diese Funktionen; sie arbeiten nur mit dem richtigen Takt-Geheimnis.
+create or replace function public.takt_pruefen(p_geheim text) returns void
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if p_geheim is null or p_geheim is distinct from (select wert from system where schluessel = 'cron_geheim') then
+    raise exception 'Takt-Geheimnis falsch';
+  end if;
+end $$;
+
+-- Alles, was der Takt braucht: Push-Schlüssel und je Person mit eingeschalteten Geräten Profil, Kalender, Geräte
+create or replace function public.takt_daten(p_geheim text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform takt_pruefen(p_geheim);
+  return jsonb_build_object(
+    'vapid_public', (select wert from system where schluessel = 'vapid_public'),
+    'vapid_private', (select wert from system where schluessel = 'vapid_private'),
+    'personen', coalesce((
+      select jsonb_agg(jsonb_build_object('user_id', a.user_id, 'daten', coalesce(p.daten, '{}'::jsonb),
+               'ics', k.ics, 'ics_url', k.url, 'ics_stand', k.stand, 'geraete', a.geraete))
+      from (select user_id, jsonb_agg(jsonb_build_object('endpoint', endpoint, 'p256dh', p256dh, 'auth', auth)) as geraete
+            from push_abos group by user_id) a
+      left join profil p on p.user_id = a.user_id
+      left join kalender_cache k on k.user_id = a.user_id), '[]'::jsonb));
+end $$;
+
+create or replace function public.takt_schluessel(p_geheim text, p_public text, p_private text) returns text
+language plpgsql security definer set search_path = public as $$
+begin
+  perform takt_pruefen(p_geheim);
+  insert into system (schluessel, wert) values ('vapid_public', p_public), ('vapid_private', p_private) on conflict (schluessel) do nothing;
+  return (select wert from system where schluessel = 'vapid_public');
+end $$;
+
+-- true = Erinnerung war noch nicht geschickt (und ist jetzt vermerkt)
+create or replace function public.takt_gesendet(p_geheim text, p_user uuid, p_id text) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  perform takt_pruefen(p_geheim);
+  insert into push_gesendet (user_id, id) values (p_user, p_id) on conflict do nothing;
+  return found;
+end $$;
+
+create or replace function public.takt_kalender(p_geheim text, p_user uuid, p_ics text, p_url text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform takt_pruefen(p_geheim);
+  insert into kalender_cache (user_id, ics, url, stand) values (p_user, p_ics, p_url, now())
+    on conflict (user_id) do update set ics = excluded.ics, url = excluded.url, stand = excluded.stand;
+end $$;
+
+create or replace function public.takt_geraet_weg(p_geheim text, p_endpoint text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform takt_pruefen(p_geheim);
+  delete from push_abos where endpoint = p_endpoint;
+end $$;
+
+revoke execute on function public.takt_pruefen(text), public.takt_daten(text), public.takt_schluessel(text, text, text),
+  public.takt_gesendet(text, uuid, text), public.takt_kalender(text, uuid, text, text), public.takt_geraet_weg(text, text) from public;
+grant execute on function public.takt_daten(text), public.takt_schluessel(text, text, text), public.takt_gesendet(text, uuid, text),
+  public.takt_kalender(text, uuid, text, text), public.takt_geraet_weg(text, text) to anon, authenticated;
+
+-- „webuntis“ speichert den Kalender mit der Anmeldung der Person selbst (statt mit Server-Schlüssel)
+grant select, insert, update on public.kalender_cache to authenticated;
+drop policy if exists kalender_eigen on public.kalender_cache;
+create policy kalender_eigen on public.kalender_cache for all using (user_id = auth.uid()) with check (user_id = auth.uid());

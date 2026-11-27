@@ -4,10 +4,9 @@
 //
 // Im Supabase-Dashboard: Edge Functions → neue Funktion „erinnerungen“ → diesen Text einfügen → Deploy.
 // Danach in den Einstellungen der Funktion „Verify JWT“ ausschalten – der Minuten-Takt weist sich mit
-// einem Geheimnis aus der Tabelle system aus.
+// einem Geheimnis aus der Tabelle system aus. Es braucht keinen Server-Schlüssel.
 //
 // ERZEUGT mit `node cloud/bauen.mjs` aus cloud/functions/erinnerungen/vorlage.ts und erinnerung.js – dort ändern.
-import { createClient } from 'npm:@supabase/supabase-js@2';
 
 // <kern>
 const ZONE = 'Europe/Rome';
@@ -519,68 +518,66 @@ async function pushSenden(geraet, text, vapid) {
 }
 // </kern>
 
+// Zugang zur Datenbank nur mit dem öffentlichen Schlüssel; Geschütztes über die takt_*-Funktionen mit dem Takt-Geheimnis
+const BASIS = 'https://qlisonjvnkxkmvfmvywt.supabase.co';
+const OEFFENTLICH = 'sb_publishable_M1o_Czj-vp8BzBFEYKToAQ_B5bDUDNU';
+async function rpc(name, args) {
+  const r = await fetch(BASIS + '/rest/v1/rpc/' + name, { method: 'POST', body: JSON.stringify(args),
+    headers: { apikey: OEFFENTLICH, 'Content-Type': 'application/json' } });
+  const t = await r.text();
+  if (!r.ok) throw new Error(name + ': ' + r.status + ' ' + t.slice(0, 300));
+  return t ? JSON.parse(t) : null;
+}
+
 Deno.serve(async (req) => {
   try { return await lauf(req); }
-  catch (e) { return Response.json({ fehler: String((e && e.stack) || e) }, { status: 500 }); }   // steht dann in net._http_response
+  catch (e) { return Response.json({ fehler: String((e && e.message) || e) }, { status: 500 }); }   // steht dann in net._http_response
 });
 
 async function lauf(req) {
-  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  const { data: sys } = await db.from('system').select('schluessel,wert');
-  const S = Object.fromEntries((sys || []).map(r => [r.schluessel, r.wert]));
-  if (!S.cron_geheim || req.headers.get('x-cron') !== S.cron_geheim) return new Response('Nicht erlaubt', { status: 401 });
+  const geheim = req.headers.get('x-cron') || '';
+  if (!geheim) return new Response('Nicht erlaubt (kein Takt-Geheimnis)', { status: 401 });
+  const d = await rpc('takt_daten', { p_geheim: geheim });   // wirft bei falschem Geheimnis
 
-  // Push-Schlüssel beim ersten Lauf erzeugen; der private bleibt in der Tabelle system
-  if (!S.vapid_public || !S.vapid_private) {
+  // Push-Schlüssel beim ersten Lauf erzeugen; der private bleibt in der Datenbank
+  let vapid = { publicKey: d.vapid_public, privateKey: d.vapid_private };
+  if (!vapid.publicKey || !vapid.privateKey) {
     const k = await vapidErzeugen();
-    const { error } = await db.from('system').upsert([{ schluessel: 'vapid_public', wert: k.publicKey }, { schluessel: 'vapid_private', wert: k.privateKey }]);
-    if (error) throw new Error('Push-Schlüssel nicht gespeichert: ' + error.message);
-    S.vapid_public = k.publicKey; S.vapid_private = k.privateKey;
+    await rpc('takt_schluessel', { p_geheim: geheim, p_public: k.publicKey, p_private: k.privateKey });
+    vapid = k;
   }
-  const vapid = { publicKey: S.vapid_public, privateKey: S.vapid_private };
 
-  const { data: abos } = await db.from('push_abos').select('endpoint,user_id,p256dh,auth');
-  const personen = new Map();
-  (abos || []).forEach(a => { if (!personen.has(a.user_id)) personen.set(a.user_id, []); personen.get(a.user_id).push(a); });
   const jetzt = Date.now(); let gesendet = 0;
   const bericht = [];
-
-  for (const [uid, geraete] of personen) {
+  for (const person of d.personen || []) {
     try {
-      const { data: p } = await db.from('profil').select('daten').eq('user_id', uid).maybeSingle();
-      const daten = (p && p.daten) || {};
+      const daten = person.daten || {};
       // WebUntis-Kalender: höchstens alle 30 Minuten neu holen
-      let ics = '';
+      let ics = person.ics || '';
       const url = String(daten.icalUrl || '').trim().replace(/^webcal:/i, 'https:');
-      if (url) {
-        const { data: kc } = await db.from('kalender_cache').select('ics,url,stand').eq('user_id', uid).maybeSingle();
-        ics = (kc && kc.ics) || '';
-        if (!kc || kc.url !== url || jetzt - Date.parse(kc.stand) > 30 * 60000) {
-          try {
-            const u = new URL(url);
-            if (/(^|\.)webuntis\.com$/i.test(u.hostname)) {
-              const r = await fetch(u, { headers: { 'User-Agent': 'KFZ-Arbeitsplatz' } });
-              const t = r.ok ? await r.text() : '';
-              if (t.includes('BEGIN:VCALENDAR')) { ics = t; await db.from('kalender_cache').upsert({ user_id: uid, ics, url, stand: new Date().toISOString() }); }
-            }
-          } catch (e) { /* alter Stand bleibt */ }
-        }
+      if (url && (!person.ics || person.ics_url !== url || jetzt - Date.parse(person.ics_stand) > 30 * 60000)) {
+        try {
+          const u = new URL(url);
+          if (/(^|\.)webuntis\.com$/i.test(u.hostname)) {
+            const r = await fetch(u, { headers: { 'User-Agent': 'KFZ-Arbeitsplatz' } });
+            const t = r.ok ? await r.text() : '';
+            if (t.includes('BEGIN:VCALENDAR')) { ics = t; await rpc('takt_kalender', { p_geheim: geheim, p_user: person.user_id, p_ics: t, p_url: url }); }
+          }
+        } catch (e) { /* alter Stand bleibt */ }
       }
       for (const e of faellig(daten, ics, jetzt)) {
-        const { error } = await db.from('push_gesendet').insert({ user_id: uid, id: e.id });
-        if (error) continue;   // schon geschickt
+        if (!(await rpc('takt_gesendet', { p_geheim: geheim, p_user: person.user_id, p_id: e.id }))) continue;   // schon geschickt
         const nachricht = JSON.stringify({ titel: e.titel, text: e.text, tag: e.id, wichtig: e.art === 'aufsicht' || e.art === 'ende' });
-        for (const g of geraete) {
-          try {
-            await pushSenden(g, nachricht, vapid);
-            gesendet++;
-          } catch (err) {
-            if (err && (err.statusCode === 404 || err.statusCode === 410)) await db.from('push_abos').delete().eq('endpoint', g.endpoint);   // Gerät abgemeldet
+        for (const g of person.geraete || []) {
+          try { await pushSenden(g, nachricht, vapid); gesendet++; }
+          catch (err) {
+            if (err && (err.statusCode === 404 || err.statusCode === 410)) await rpc('takt_geraet_weg', { p_geheim: geheim, p_endpoint: g.endpoint });   // Gerät abgemeldet
+            else bericht.push('Push: ' + ((err && err.message) || err));
           }
         }
         bericht.push(e.id);
       }
     } catch (e) { bericht.push('Fehler: ' + ((e && e.message) || e)); }
   }
-  return Response.json({ personen: personen.size, gesendet, bericht });
+  return Response.json({ personen: (d.personen || []).length, gesendet, bericht });
 }
