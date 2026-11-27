@@ -77,3 +77,10 @@ npm ci
 npm start        # App starten
 npm run build    # Windows-Version nach dist/ bauen
 ```
+
+### Server-Programme (Supabase Edge Functions)
+
+- `cloud/functions/webuntis/index.ts` – holt den WebUntis-Kalender für die angemeldete Person (der Browser darf das nicht direkt).
+- `cloud/functions/erinnerungen/index.ts` – läuft jede Minute (Zeitplan `kfz-erinnerungen` aus `cloud/schema.sql`) und schickt fällige Erinnerungen als Push-Mitteilung, auch wenn die App geschlossen ist. Enthält `erinnerung.js`; nach Änderungen daran neu bauen mit `node cloud/bauen.mjs`.
+
+Einrichten im Supabase-Dashboard: `cloud/schema.sql` im SQL Editor ausführen; unter Edge Functions zwei Funktionen „webuntis“ und „erinnerungen“ anlegen (Via Editor), den Inhalt der jeweiligen `index.ts` einfügen, Deploy, dann bei beiden „Verify JWT“ ausschalten. Geheimnisse sind nicht nötig: die Push-Schlüssel erzeugt der Server selbst.

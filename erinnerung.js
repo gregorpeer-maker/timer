@@ -197,6 +197,7 @@
     try {
       let txt;
       if (window.desk && window.desk.ical) txt = await window.desk.ical(url);
+      else if (window.Cloud && window.Cloud.konto && window.Cloud.konto()) txt = await window.Cloud.webuntis(url);   // über den eigenen Server
       else {
         let r;
         try { r = await fetch(url, { cache: 'no-store' }); } catch (e) { throw new Error('BROWSER'); }

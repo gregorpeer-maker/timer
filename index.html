@@ -1410,6 +1410,62 @@
     setInterval(() => { if (!document.hidden) cloudAbgleich(); }, 30000);
   }
 
+  // ---------- Push: Erinnerungen bei geschlossener App ----------
+  // Das Gerät abonniert Push-Mitteilungen; das Server-Programm „erinnerungen“ schickt dann jede fällige Erinnerung.
+  let pushEndpoint = null, pushGeraete = [], pushInfo = '';
+  const pushMoeglich = () => !window.desk && 'serviceWorker' in navigator && 'PushManager' in window && (location.protocol === 'https:' || location.hostname === 'localhost');
+  const b64u = s => { const r = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+  const geraetName = () => {
+    const u = navigator.userAgent;
+    const os = /Android/.test(u) ? 'Android' : /iPhone|iPad|iPod/.test(u) ? 'iPhone/iPad' : /Windows/.test(u) ? 'Windows-PC' : /Mac/.test(u) ? 'Mac' : /Linux/.test(u) ? 'Linux' : 'Gerät';
+    const br = /Edg\//.test(u) ? 'Edge' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : '';
+    return (os + (br ? ' · ' + br : '') + (standalone() ? ' (App)' : '')).slice(0, 120);
+  };
+  async function pushPruefen() {
+    try { const reg = pushMoeglich() && await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); pushEndpoint = sub ? sub.endpoint : ''; }
+    catch (e) { pushEndpoint = ''; }
+    try { pushGeraete = angemeldet() ? await C.holen('push_abos?select=endpoint,geraet,erstellt&order=erstellt.asc') : []; } catch (e) { pushGeraete = []; }
+  }
+  async function pushAn() {
+    if (!angemeldet()) throw new Error('Bitte zuerst anmelden.');
+    if (!pushMoeglich()) throw new Error(/iPhone|iPad/.test(navigator.userAgent) ? 'Am iPhone geht das nur in der installierten App (Safari → Teilen → „Zum Home-Bildschirm“, ab iOS 16.4).' : 'Dieser Browser kann keine Push-Mitteilungen.');
+    if ((await Notification.requestPermission()) !== 'granted') throw new Error('Mitteilungen sind für diese Seite nicht erlaubt (Einstellungen des Browsers/Geräts).');
+    const key = await C.rpc('push_schluessel', {});
+    if (!key) throw new Error('Das Server-Programm „erinnerungen“ läuft noch nicht. Nach dem Einrichten eine Minute warten und noch einmal probieren.');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && sub.options && sub.options.applicationServerKey) {
+      const alt = btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      if (alt !== key) { await sub.unsubscribe(); sub = null; }
+    }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
+    const j = sub.toJSON();
+    await C.upsert('push_abos', [{ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, geraet: geraetName() }]);
+  }
+  async function pushAus(endpoint) {
+    const eigen = !endpoint || endpoint === pushEndpoint;
+    endpoint = endpoint || pushEndpoint;
+    if (endpoint && angemeldet()) await C.loeschen('push_abos?endpoint=eq.' + encodeURIComponent(endpoint));
+    if (eigen) { try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {} }
+  }
+  function cardPush() {
+    const an = !!pushEndpoint && pushGeraete.some(g => g.endpoint === pushEndpoint);
+    const out = h('p', { class: 'note', role: 'status' }, pushInfo);
+    const tu = async fn => { out.textContent = 'Bitte warten …'; out.style.color = ''; try { await fn(); pushInfo = ''; await pushPruefen(); render(); } catch (e) { pushInfo = '⚠ ' + e.message; out.textContent = pushInfo; out.style.color = 'var(--crit)'; } };
+    return h('section', { class: 'card mark', style: '--c:var(--warn)' }, h('h2', null, '🔔 Erinnerungen bei geschlossener App'),
+      h('p', { class: 'note' }, 'Der Server schickt „Noch 5 Minuten“, „Stunde zu Ende“, Pausen, Pausenaufsicht und Feierabend als Mitteilung – auch wenn die App zu ist. Es gelten deine Einstellungen und Schalter (Stunde/Pausen, heute stumm).'),
+      window.desk ? h('p', { class: 'note' }, 'In der Windows-App kommen die Erinnerungen vom Programm selbst, solange es läuft.')
+        : !pushMoeglich() ? h('p', { class: 'note', style: 'color:var(--warn)' }, /iPhone|iPad/.test(navigator.userAgent) ? 'Am iPhone: zuerst als App installieren (Safari → Teilen → „Zum Home-Bildschirm“), dann hier einschalten.' : 'Dieser Browser kann keine Push-Mitteilungen.')
+        : h('div', { class: 'switches', style: 'border-top:0;padding-top:0' },
+          h('label', { class: 'sw' }, h('input', { type: 'checkbox', role: 'switch', checked: an, onchange: ev => tu(ev.target.checked ? pushAn : () => pushAus()) }),
+            h('span', { class: 'knob', 'aria-hidden': 'true' }), h('span', null, 'Auf diesem Gerät (' + geraetName() + ')'))),
+      pushGeraete.length ? h('div', { class: 'list' }, h('div', { class: 'grp' }, 'Eingeschaltet auf'), pushGeraete.map(g => h('div', { class: 'row' },
+        h('span', null, '📱 ' + (g.geraet || 'Gerät')), g.endpoint === pushEndpoint ? h('span', { class: 'badge good' }, 'dieses') : null,
+        h('span', { class: 'note' }, 'seit ' + new Date(g.erstellt).toLocaleDateString('de-DE')),
+        h('button', { class: 'small ghost', style: 'margin-left:auto', 'aria-label': 'Ausschalten', title: 'Für dieses Gerät ausschalten', onclick: () => tu(() => pushAus(g.endpoint)) }, '✕')))) : null,
+      out);
+  }
+
   // Konto-Seite: Anmelden/Registrieren, Team anlegen/beitreten, Status
   function viewKonto() {
     const w = [h('div', { class: 'crumb' }, '⌂ Konto & Cloud'), h('h1', null, angemeldet() ? 'Konto & Team' : 'Anmelden')];
@@ -1467,6 +1523,7 @@
           h('button', { class: 'small primary', onclick: () => cloudAbgleich(true) }, 'Jetzt abgleichen')),
         out));
     }
+    w.push(cardPush());
     const neuPw = h('input', { type: 'password', minlength: '8', autocomplete: 'new-password', placeholder: 'neues Passwort (mind. 8 Zeichen)', style: 'flex:1 1 200px' });
     w.push(h('section', { class: 'card' }, h('h2', null, '👤 ' + (S.ich.name || k.user.email)),
       h('p', { class: 'note' }, 'Angemeldet als ' + k.user.email),
@@ -1606,7 +1663,7 @@
         h('span', { class: 'note' }, 'Mitteilungen: ' + (perm === 'granted' ? 'erlaubt ✓' : perm === 'denied' ? 'blockiert – in den Einstellungen des Geräts/Browsers erlauben' : 'noch nicht erlaubt')),
         perm === 'default' ? h('button', { class: 'small', onclick: () => Notification.requestPermission().then(render) }, 'Mitteilungen erlauben') : null,
         h('button', { class: 'small', onclick: () => E.testen() }, 'Testen')),
-      h('p', { class: 'note' }, 'Hinweis: Erinnerungen kommen derzeit, solange die App offen ist. Am Handy legt das System eine geschlossene App schlafen – Erinnerungen bei geschlossener App kommen mit der Cloud (Schritt 3).'));
+      h('p', { class: 'note' }, 'Erinnerungen auch bei geschlossener App: anmelden und unter ', h('a', { href: '#/konto' }, 'Konto & Team'), ' „🔔 Erinnerungen bei geschlossener App“ einschalten.'));
   }
   function viewTeam() {
     const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Team'), h('h1', null, 'Team & Austausch')];
@@ -1682,6 +1739,7 @@
     main.append(h('div', { class: 'wrap' }, (views[r] || viewStart)()));
     main.scrollTop = y;
   }
+  window.addEventListener('hashchange', () => { if (route()[0] === 'konto' && angemeldet()) pushPruefen().then(() => { if (route()[0] === 'konto' && !tippt()) render(); }); });
   window.addEventListener('hashchange', () => { document.body.classList.remove('menu'); $('main').scrollTop = 0; render(); });
   $('menuBtn').onclick = () => document.body.classList.toggle('menu');
   document.addEventListener('click', e => { if (document.body.classList.contains('menu') && !e.target.closest('aside') && e.target !== $('menuBtn')) document.body.classList.remove('menu'); });
@@ -1699,6 +1757,7 @@
   }
   E.starten(e => { if (e && e.art === 'kalender' && !$('dlg').open) render(); });
   if (angemeldet()) setTimeout(() => cloudAbgleich(), 500);
+  if (angemeldet() && route()[0] === 'konto') pushPruefen().then(render);
   setInterval(tick, 1000);
   setInterval(() => { if (fh && !document.hidden) abgleichen(false); }, 60000);
   if (fsOk) idb('readonly', st => st.get('teamdatei')).then(hd => { if (hd) { fh = hd; abgleichen(false); renderSide(); } }).catch(() => {});

@@ -23,6 +23,7 @@
     [/rate limit|too many/i, 'Zu viele Versuche. Bitte kurz warten und noch einmal probieren.'],
     [/signups not allowed|signup is disabled/i, 'Neue Registrierungen sind derzeit abgeschaltet.'],
     [/JWT expired|invalid JWT|bad_jwt/i, 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.'],
+    [/could not find the function|schema cache|relation .* does not exist/i, 'Die Datenbank ist noch nicht auf dem neuesten Stand – bitte cloud/schema.sql im Supabase SQL Editor erneut ausführen.'],
     [/object not found|not_found/i, 'Die Datei gibt es nicht mehr (wurde gelöscht).'],
     [/resource already exists|duplicate/i, 'Eine Datei mit diesem Namen gibt es schon.'],
   ];
@@ -118,6 +119,17 @@
       const u = j && (j.signedURL || j.signedUrl);
       if (!u) throw fehler('Kein Link erhalten.');
       return BASIS + '/storage/v1' + u + (name ? '&download=' + encodeURIComponent(name) : '');
+    },
+    // WebUntis-Kalender über das Server-Programm „webuntis“ holen (der Browser selbst darf es nicht)
+    async webuntis(url) {
+      const t = await token(); if (!t) throw fehler('Nicht angemeldet.', 'abgemeldet');
+      let r;
+      try { r = await fetch(BASIS + '/functions/v1/webuntis', { method: 'POST', headers: { apikey: SCHLUESSEL, Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }); }
+      catch (e) { throw fehler('Keine Verbindung zur Cloud (offline?).', 'offline'); }
+      const txt = await r.text();
+      if (r.status === 404) throw fehler('Das Server-Programm „webuntis“ ist auf dem Server noch nicht eingerichtet.');
+      if (!r.ok) throw fehler(txt.slice(0, 200) || 'Fehler ' + r.status);
+      return txt;
     },
     // Löschen wie in der offiziellen Bibliothek: Liste der Pfade im Body (ein leerer Body mit JSON-Typ wird abgelehnt)
     async dateiLoeschen(pfad) {

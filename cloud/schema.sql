@@ -178,3 +178,64 @@ create policy material_ersetzen on storage.objects for update to authenticated
 drop policy if exists material_loeschen on storage.objects;
 create policy material_loeschen on storage.objects for delete to authenticated
   using (bucket_id = 'material' and public.mein_team_ordner(name));
+
+-- ---------------------------------------------------------------------------------------------
+-- Schritt 3: WebUntis über den Server und Push-Erinnerungen bei geschlossener App
+--
+--   push_abos       Geräte, die Push-Mitteilungen bekommen (jede Person nur die eigenen)
+--   system          interne Werte (Push-Schlüssel, Geheimnis für den Minuten-Takt) – nur für den Server lesbar
+--   kalender_cache  zuletzt abgerufener WebUntis-Kalender je Person – nur für den Server
+--   push_gesendet   welche Erinnerung schon geschickt wurde (damit keine doppelt kommt)
+create table if not exists public.push_abos (
+  endpoint  text primary key check (endpoint ~ '^https://'),
+  user_id   uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  p256dh    text not null,
+  auth      text not null,
+  geraet    text not null default '' check (char_length(geraet) <= 120),
+  erstellt  timestamptz not null default now()
+);
+create table if not exists public.system (schluessel text primary key, wert text not null);
+create table if not exists public.kalender_cache (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  ics text not null, url text not null default '', stand timestamptz not null default now()
+);
+create table if not exists public.push_gesendet (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null, zeit timestamptz not null default now(),
+  primary key (user_id, id)
+);
+alter table public.push_abos enable row level security;
+alter table public.system enable row level security;          -- keine Regeln = nur der Server (service role)
+alter table public.kalender_cache enable row level security;
+alter table public.push_gesendet enable row level security;
+drop policy if exists push_eigene on public.push_abos;
+create policy push_eigene on public.push_abos for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+revoke all on public.push_abos, public.system, public.kalender_cache, public.push_gesendet from anon, authenticated;
+grant select, insert, update, delete on public.push_abos to authenticated;
+
+-- Geheimnis, mit dem der Minuten-Takt sich beim Server-Programm ausweist (wird hier erzeugt, verlässt die Datenbank nicht)
+insert into public.system (schluessel, wert) values ('cron_geheim', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+  on conflict (schluessel) do nothing;
+
+-- Öffentlicher Push-Schlüssel für die App (der private bleibt in der Tabelle system)
+create or replace function public.push_schluessel() returns text
+language sql stable security definer set search_path = public as $$
+  select wert from system where schluessel = 'vapid_public'
+$$;
+grant execute on function public.push_schluessel() to authenticated;
+
+-- Minuten-Takt: ruft jede Minute das Server-Programm „erinnerungen“ auf
+create extension if not exists pg_net with schema extensions;
+create extension if not exists pg_cron;
+select cron.schedule('kfz-erinnerungen', '* * * * *', $cron$
+  select net.http_post(
+    url := 'https://qlisonjvnkxkmvfmvywt.supabase.co/functions/v1/erinnerungen',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron', (select wert from public.system where schluessel = 'cron_geheim')),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 20000)
+$cron$);
+-- Aufräumen: gesendete Erinnerungen nach zwei Tagen vergessen, alte Ergebnisse des Takts löschen
+select cron.schedule('kfz-aufraeumen', '17 3 * * *', $cron$
+  delete from public.push_gesendet where zeit < now() - interval '2 days';
+  delete from net._http_response where created < now() - interval '1 day';
+$cron$);
