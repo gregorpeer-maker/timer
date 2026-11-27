@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KFZ-Arbeitsplatz</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KFZ-Arbeitsplatz">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
 <style>
@@ -246,6 +254,7 @@
   <span class="clock" id="clock">--:--</span>
   <button id="timerBtn" title="Unterrichtstimer öffnen – Stundenende wird aus der Klingel übernommen">⏱ Timer</button>
   <button id="syncBtn" title="Mit der Team-Datei abgleichen" hidden>⇅</button>
+  <button id="installBtn" hidden title="Als App auf diesem Gerät installieren">📲 Installieren</button>
   <a class="me" id="regBtn" target="_blank" rel="noopener" hidden title="Digitales Register öffnen">📒 Register</a>
   <a class="me" id="meBtn" href="#/team">👤 Name eintragen</a>
 </header>
@@ -1200,6 +1209,30 @@
         ? h('button', { class: 'chip', style: fachC(f.k), title: 'Bearbeiten', onclick: () => fachDialog(E.alle().find(y => y.k === f.k)) }, F(f.k), f.name, ' ✎')
         : h('span', { class: 'chip' }, F(f.k), f.name))));
   }
+  // ---------- Als App installieren (PWA) ----------
+  let installEvt = null;
+  const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; if (route()[0] === 'team') render(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; $('installBtn').hidden = true; E.toast({ art: 'pause', titel: 'App installiert', text: 'Du findest den KFZ-Arbeitsplatz jetzt bei deinen Apps.' }); });
+  const installieren = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; $('installBtn').hidden = true; render(); };
+  $('installBtn').onclick = installieren;
+  function cardInstallieren() {
+    const perm = 'Notification' in window ? Notification.permission : 'nicht verfügbar';
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    return h('section', { class: 'card mark', style: '--c:var(--accent2)' }, h('h2', null, '📲 Als App installieren'),
+      standalone() ? h('p', { class: 'note', style: 'color:var(--good)' }, '✓ Läuft als installierte App.')
+        : installEvt ? h('div', { class: 'row', style: 'background:none;padding:0' }, h('button', { class: 'primary', onclick: installieren }, '📲 Jetzt installieren'), h('span', { class: 'note' }, 'Kostenlos, ohne App Store.'))
+        : h('p', { class: 'note' }, ios ? 'iPhone/iPad: in Safari unten auf „Teilen“ ⬆️ tippen, dann „Zum Home-Bildschirm“.' : 'Im Browser-Menü „App installieren“ bzw. „Zum Startbildschirm hinzufügen“ wählen (Chrome, Edge).'),
+      h('ul', { class: 'note', style: 'margin:0;padding-left:18px' },
+        h('li', null, 'Android: Chrome → Menü ⋮ → „App installieren“.'),
+        h('li', null, 'iPhone: Safari → Teilen → „Zum Home-Bildschirm“. Mitteilungen gibt es am iPhone nur in der installierten App (ab iOS 16.4).'),
+        h('li', null, 'PC: Chrome oder Edge → Symbol „App installieren“ rechts in der Adresszeile.')),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('span', { class: 'note' }, 'Mitteilungen: ' + (perm === 'granted' ? 'erlaubt ✓' : perm === 'denied' ? 'blockiert – in den Einstellungen des Geräts/Browsers erlauben' : 'noch nicht erlaubt')),
+        perm === 'default' ? h('button', { class: 'small', onclick: () => Notification.requestPermission().then(render) }, 'Mitteilungen erlauben') : null,
+        h('button', { class: 'small', onclick: () => E.testen() }, 'Testen')),
+      h('p', { class: 'note' }, 'Hinweis: Erinnerungen kommen derzeit, solange die App offen ist. Am Handy legt das System eine geschlossene App schlafen – Erinnerungen bei geschlossener App kommen mit der Cloud (Schritt 3).'));
+  }
   function viewTeam() {
     const w = [h('div', { class: 'crumb' }, '⌂ Organisation › Team'), h('h1', null, 'Team & Austausch')];
     w.push(h('section', { class: 'card' }, h('h2', null, '👤 Ich'),
@@ -1209,6 +1242,7 @@
         h('label', null, 'Digitales Register', h('input', { type: 'url', value: S.ich.register || '', placeholder: 'https://deineschule.digitalesregister.it', onchange: ev => { S.ich.register = ev.target.value.trim(); save(true); renderSide(); } }))),
       h('p', { class: 'note' }, 'Der Name steht bei deinen Einträgen, damit Kolleginnen und Kollegen sehen, von wem eine Änderung kommt.')));
 
+    w.push(cardInstallieren());
     w.push(cardFaecher());
     w.push(h('section', { class: 'card' }, h('h2', null, '👥 Fachlehrer-Team', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => personDialog() }, '+ Person')),
       alive('personen').length ? h('div', { class: 'list' }, alive('personen').sort((a, b) => a.name.localeCompare(b.name, 'de')).map(p => h('div', { class: 'row' },

@@ -11,6 +11,10 @@ Das Repository enthält:
 
 ## KFZ-Arbeitsplatz
 
+**Als App installieren (PC und Handy, kostenlos):** Die Seite über GitHub Pages öffnen und im Browser „App installieren“ wählen (Android/PC: Chrome oder Edge; iPhone: Safari → Teilen → „Zum Home-Bildschirm“). Die App funktioniert auch ohne Internet und zeigt Mitteilungen, solange sie offen ist.
+
+**Cloud (in Arbeit):** `cloud/schema.sql` enthält die Datenbank für Supabase (kostenloser Tarif): Anmeldung per E-Mail, Team mit Einladungscode, gemeinsame Daten mit Zugriffsregeln, persönliche Daten pro Person.
+
 Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX), Methodenkompetenz (MK).
 
 - **Stundenplan & Klingel:** Wochenplan antippen und Fach, Klasse und Raum eintragen. Bei Pausen „Aufsicht“ anhaken.

@@ -365,10 +365,18 @@
     setTimeout(() => el.remove(), e.art === 'aufsicht' ? 300000 : 120000);
   }
 
+  // Service Worker (installierte App, Handy): Mitteilungen laufen über ihn – am Handy geht es nur so
+  let swReg = null;
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !window.desk) {
+    navigator.serviceWorker.register('sw.js').then(r => navigator.serviceWorker.ready).then(r => { swReg = r; }).catch(() => {});
+  }
   function mitteilung(e) {
     try {
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      const n = new Notification(e.titel, { body: e.text, tag: e.id, requireInteraction: e.art === 'aufsicht' || e.art === 'ende' });
+      const opt = { body: e.text, tag: e.id, requireInteraction: e.art === 'aufsicht' || e.art === 'ende',
+        icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', vibrate: [200, 100, 200], data: { url: location.pathname.split('/').pop() || './index.html' } };
+      if (swReg) { swReg.showNotification(e.titel, opt).catch(() => {}); return; }
+      const n = new Notification(e.titel, opt);
       n.onclick = () => { try { window.focus(); } catch (x) {} n.close(); };
     } catch (x) {}
   }
