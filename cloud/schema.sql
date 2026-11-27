@@ -226,7 +226,7 @@ grant execute on function public.push_schluessel() to authenticated;
 
 -- Minuten-Takt: ruft jede Minute das Server-Programm „erinnerungen“ auf
 create extension if not exists pg_net with schema extensions;
-create extension if not exists pg_cron;
+create extension if not exists pg_cron with schema pg_catalog;   -- so verlangt es Supabase
 select cron.schedule('kfz-erinnerungen', '* * * * *', $cron$
   select net.http_post(
     url := 'https://qlisonjvnkxkmvfmvywt.supabase.co/functions/v1/erinnerungen',
