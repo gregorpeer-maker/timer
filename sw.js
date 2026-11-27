@@ -1,7 +1,7 @@
 // Service Worker: App offline verfügbar machen und Mitteilungen anzeigen.
 // Seiten: zuerst aus dem Netz (damit Updates sofort ankommen), ohne Netz aus dem Speicher.
-const CACHE = 'kfz-arbeitsplatz-v1';
-const SHELL = ['./', './index.html', './timer.html', './erinnerung.js', './manifest.webmanifest',
+const CACHE = 'kfz-arbeitsplatz-v2';
+const SHELL = ['./', './index.html', './timer.html', './erinnerung.js', './cloud.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/badge-96.png'];
 
 self.addEventListener('install', e => {

@@ -13,7 +13,7 @@ Das Repository enthält:
 
 **Als App installieren (PC und Handy, kostenlos):** Die Seite über GitHub Pages öffnen und im Browser „App installieren“ wählen (Android/PC: Chrome oder Edge; iPhone: Safari → Teilen → „Zum Home-Bildschirm“). Die App funktioniert auch ohne Internet und zeigt Mitteilungen, solange sie offen ist.
 
-**Cloud (in Arbeit):** `cloud/schema.sql` enthält die Datenbank für Supabase (kostenloser Tarif): Anmeldung per E-Mail, Team mit Einladungscode, gemeinsame Daten mit Zugriffsregeln, persönliche Daten pro Person.
+**Cloud (Supabase, kostenloser Tarif):** Oben „☁ Anmelden“ → Konto mit E-Mail und Passwort anlegen → Team anlegen oder mit dem Einladungscode beitreten. Gemeinsame Einträge (Stoffverteilung, Team-Aufgaben, Termine, Pinnwand, Rückmeldungen) sieht das ganze Team; private To-dos nur man selbst. Stundenplan, Klingelzeiten und Einstellungen liegen im eigenen Profil und sind auf allen eigenen Geräten gleich. Ohne Internet arbeitet die App weiter und gleicht später ab (alle 30 Sekunden und nach jeder Änderung). Die Datenbank steht in `cloud/schema.sql`, die Anbindung in `cloud.js`.
 
 Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX), Methodenkompetenz (MK).
 

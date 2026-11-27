@@ -267,6 +267,7 @@
 <input type="file" id="icsIn" accept=".ics,text/calendar" hidden>
 
 <script src="erinnerung.js"></script>
+<script src="cloud.js"></script>
 <script>
 (() => {
   'use strict';
@@ -290,8 +291,10 @@
   let syncTimer = null;
   function save(ohneSync) {
     E.setExtra(S.faecher);
+    if (typeof profilPruefen === 'function') profilPruefen();
     try { localStorage.setItem(E.KEY, JSON.stringify(S)); } catch (e) { E.toast({ art: 'ende', titel: 'Speichern fehlgeschlagen', text: 'Der Browser erlaubt keinen Speicher (privates Fenster?).' }); }
     if (!ohneSync && fh) { clearTimeout(syncTimer); syncTimer = setTimeout(() => abgleichen(false), 4000); }
+    if (typeof cloudBald === 'function' && (!ohneSync || (S.cloud && S.cloud.profilDirty))) cloudBald();
   }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const alive = c => S.team[c].filter(x => !x.del);
@@ -300,6 +303,7 @@
     if (!item.autor) item.autor = S.ich.name || '';
     const i = S.team[c].findIndex(x => x.id === item.id);
     if (i >= 0) S.team[c][i] = item; else S.team[c].push(item);
+    dirty(c, item.id);
     save(); if (!still) render();
     return item;
   }
@@ -307,6 +311,7 @@
     const i = S.team[c].findIndex(x => x.id === id); if (i < 0) return;
     const x = S.team[c][i];
     S.team[c][i] = { id: x.id, del: true, upd: Date.now(), von: S.ich.name || '', privat: x.privat || undefined };
+    dirty(c, x.id);
     save(); render();
   }
   const valid = x => x && typeof x === 'object' && typeof x.id === 'string' && x.id.length < 60 && Number.isFinite(x.upd);
@@ -316,8 +321,8 @@
       (other && Array.isArray(other[c]) ? other[c] : []).forEach(x => {
         if (!valid(x) || x.privat) return;
         const i = S.team[c].findIndex(y => y.id === x.id);
-        if (i < 0) { S.team[c].push(x); n++; }
-        else if (x.upd > (S.team[c][i].upd || 0)) { S.team[c][i] = x; n++; }
+        if (i < 0) { S.team[c].push(x); n++; dirty(c, x.id); }
+        else if (x.upd > (S.team[c][i].upd || 0)) { S.team[c][i] = x; n++; dirty(c, x.id); }
       });
     });
     return n;
@@ -442,10 +447,11 @@
       h('div', { class: 'chips' }, klassen().length ? klassen().map(k => h('a', { class: 'chip' + (route()[0] === 'klasse' && norm(route()[1]) === norm(k) ? ' on' : ''), href: '#/klasse/' + encodeURIComponent(k) }, k))
         : h('span', { class: 'note' }, 'Kommen aus dem Stundenplan.')),
     ].flat());
-    $('meBtn').textContent = '👤 ' + (S.ich.name || 'Name eintragen');
+    $('meBtn').textContent = C && !C.konto() ? '☁ Anmelden' : '👤 ' + (S.ich.name || 'Name eintragen');
+    $('meBtn').href = C ? '#/konto' : '#/team';
     const reg = /^https:\/\/\S+$/i.test(S.ich.register || '') ? S.ich.register : '';
     $('regBtn').hidden = !reg; if (reg) $('regBtn').href = reg;
-    $('syncBtn').hidden = !fh;
+    renderStatus();
   }
 
   // ---------- Startseite ----------
@@ -530,6 +536,11 @@
       w.push(h('div', { class: 'banner' }, '🔔', h('span', { class: 'grow' }, h('b', null, 'Mitteilungen'), ' auch dann, wenn das Fenster im Hintergrund ist?'),
         h('button', { class: 'primary small', onclick: () => Notification.requestPermission().then(render) }, 'Einschalten'),
         h('button', { class: 'small', onclick: () => { S.ui.notifNein = true; save(true); render(); } }, 'Nicht jetzt')));
+    }
+    if (C && !C.konto() && !S.ui.cloudNein) {
+      w.push(h('div', { class: 'banner', style: '--hi:var(--accent)' }, '☁', h('span', { class: 'grow' }, h('b', null, 'Im Team arbeiten:'), ' mit Konto sind deine Daten auf PC und Handy gleich und dein Fachlehrer-Team sieht die gemeinsamen Einträge.'),
+        h('a', { class: 'chip', href: '#/konto' }, 'Anmelden / Konto anlegen'),
+        h('button', { class: 'small', onclick: () => { S.ui.cloudNein = true; save(true); render(); } }, 'Nicht jetzt')));
     }
     const planDa = S.plan.length || (E.kal() && E.kal().von);
     if (!S.ich.name || !planDa) {
@@ -1112,6 +1123,203 @@
         h('button', { class: 'small danger', onclick: () => { E.kalenderEntfernen(); render(); } }, 'Kalender entfernen')) : null);
   }
 
+  // ---------- Cloud (Supabase): Konto, Team, Abgleich ----------
+  // Gemeinsame Einträge (S.team) gehen in die Tabelle eintraege, Stundenplan/Klingel/Einstellungen ins eigene Profil.
+  // Geänderte Einträge merkt sich S.cloud.dirty; abgeholt wird alles mit neuerer Server-Zeit als S.cloud.marke.
+  const C = window.Cloud;
+  const cl = () => { if (!S.cloud || typeof S.cloud !== 'object') S.cloud = {}; if (!S.cloud.dirty || typeof S.cloud.dirty !== 'object') S.cloud.dirty = {}; return S.cloud; };
+  const angemeldet = () => !!(C && C.konto());
+  function dirty(c, id) {
+    if (!angemeldet()) return;
+    const d = cl().dirty; d[c] = Array.isArray(d[c]) ? d[c] : [];
+    if (!d[c].includes(id)) d[c].push(id);
+  }
+  function allesDirty() { COLS.forEach(c => S.team[c].forEach(x => dirty(c, x.id))); }
+  const profilTeil = () => ({ ich: S.ich, bell: S.bell, plan: S.plan, aufsicht: S.aufsicht, einst: S.einst, faecher: S.faecher,
+    icalMap: S.ui.icalMap || {}, icalUrl: S.ui.icalUrl || '' });
+  function profilPruefen() {
+    if (!angemeldet()) return;
+    const c = cl(), hsh = JSON.stringify(profilTeil());
+    if (hsh !== c.profilHash) { c.profilHash = hsh; c.profilUpd = Date.now(); c.profilDirty = true; }
+  }
+  const sinnvoll = d => d && ((Array.isArray(d.plan) && d.plan.length) || d.icalUrl || (d.ich && d.ich.name));
+  function profilAnwenden(d) {
+    if (d.ich && typeof d.ich === 'object') S.ich = Object.assign({ name: '', klasse: '' }, d.ich);
+    if (Array.isArray(d.bell) && d.bell.length) S.bell = d.bell;
+    if (Array.isArray(d.plan)) S.plan = d.plan;
+    if (Array.isArray(d.aufsicht)) S.aufsicht = d.aufsicht;
+    if (d.einst && typeof d.einst === 'object') S.einst = Object.assign({}, E.DEFAULT_EINST, d.einst);
+    if (Array.isArray(d.faecher)) S.faecher = d.faecher;
+    if (d.icalMap && typeof d.icalMap === 'object') S.ui.icalMap = d.icalMap;
+    if (typeof d.icalUrl === 'string') S.ui.icalUrl = d.icalUrl;
+  }
+  function anwenden(r) {
+    if (!COLS.includes(r.sammlung) || !r.daten || typeof r.daten !== 'object') return false;
+    const upd = Number(r.upd);
+    const x = r.geloescht ? { id: r.id, del: true, upd, von: r.daten.von || '', privat: r.daten.privat || undefined } : Object.assign({}, r.daten, { id: r.id, upd });
+    const arr = S.team[r.sammlung], i = arr.findIndex(y => y.id === r.id);
+    if (i < 0) { arr.push(x); return true; }
+    if ((arr[i].upd || 0) > upd) return false;            // hier neuer – geht beim nächsten Hochladen hinauf
+    if (JSON.stringify(arr[i]) === JSON.stringify(x)) return false;
+    arr[i] = x; return true;
+  }
+
+  let cloudLauf = null, cloudInfo = '', cloudFehler = false, cloudTimer = null;
+  function cloudBald() { if (!angemeldet()) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudAbgleich(), 2000); }
+  function cloudAbgleich(laut) {
+    if (!angemeldet()) return Promise.resolve();
+    if (cloudLauf) return cloudLauf;
+    renderStatus('lauf');
+    cloudLauf = (async () => {
+      const c = cl(), uid = C.konto().user.id;
+      let neu = 0;
+      try {
+        // Team bestimmen (und merken, falls man entfernt wurde)
+        const m = (await C.holen('mitglieder?select=team_id,rolle,name&user_id=eq.' + uid))[0];
+        if (!m) { if (c.teamId) { c.teamId = ''; c.marke = ''; } }
+        else {
+          if (c.teamId !== m.team_id) { c.teamId = m.team_id; c.marke = ''; allesDirty(); }
+          c.rolle = m.rolle;
+          const t = (await C.holen('teams?select=name,code&id=eq.' + c.teamId))[0] || {};
+          c.teamName = t.name || ''; c.code = t.code || '';
+          c.mitglieder = (await C.holen('mitglieder?select=name,rolle,user_id&team_id=eq.' + c.teamId + '&order=seit.asc')).map(x => ({ name: x.name, rolle: x.rolle, ich: x.user_id === uid }));
+        }
+        if (c.teamId) {
+          // 1. Hochladen, was hier geändert wurde
+          const zeilen = [];
+          Object.entries(c.dirty).forEach(([col, ids]) => (Array.isArray(ids) ? ids : []).forEach(id => {
+            const x = (S.team[col] || []).find(y => y.id === id);
+            if (x) zeilen.push({ team_id: c.teamId, sammlung: col, id, daten: x, upd: Math.round(x.upd || Date.now()), geloescht: !!x.del, privat_von: x.privat ? uid : null });
+          }));
+          for (let i = 0; i < zeilen.length; i += 200) await C.upsert('eintraege', zeilen.slice(i, i + 200));
+          zeilen.forEach(z => {   // nur austragen, was seitdem nicht erneut geändert wurde
+            const x = (S.team[z.sammlung] || []).find(y => y.id === z.id);
+            if (x && Math.round(x.upd) === z.upd) c.dirty[z.sammlung] = (c.dirty[z.sammlung] || []).filter(id => id !== z.id);
+          });
+          // 2. Abholen, was seit dem letzten Mal neu ist
+          let marke = c.marke || '1970-01-01T00:00:00Z', mehr = true;
+          while (mehr) {
+            const z = await C.holen(`eintraege?select=sammlung,id,daten,upd,geloescht,server_zeit&team_id=eq.${c.teamId}&server_zeit=gt.${encodeURIComponent(marke)}&order=server_zeit.asc&limit=500`);
+            z.forEach(r => { if (anwenden(r)) neu++; marke = r.server_zeit; });
+            mehr = z.length === 500;
+          }
+          c.marke = marke;
+        }
+        // 3. Persönliches Profil (Stundenplan, Klingel, Einstellungen) – auf allen eigenen Geräten gleich
+        const p = (await C.holen('profil?select=daten,upd'))[0];
+        if (p && (!c.profilSeit ? sinnvoll(p.daten) : Number(p.upd) > (c.profilUpd || 0))) {
+          profilAnwenden(p.daten); c.profilUpd = Number(p.upd); c.profilHash = JSON.stringify(profilTeil()); c.profilDirty = false; neu++;
+        } else if (c.profilDirty || !p || !c.profilSeit) {
+          c.profilHash = JSON.stringify(profilTeil()); c.profilUpd = c.profilUpd || Date.now();
+          await C.upsert('profil', [{ daten: profilTeil(), upd: c.profilUpd }]); c.profilDirty = false;
+        }
+        c.profilSeit = true;
+        c.stand = Date.now(); cloudFehler = false;
+        cloudInfo = c.teamId ? `Abgeglichen ${uhr(c.stand)}` + (neu ? ` · ${neu} Änderungen übernommen` : '') : 'Angemeldet – noch in keinem Team';
+      } catch (e) {
+        cloudFehler = true; cloudInfo = e.art === 'offline' ? 'Offline – wird später abgeglichen' : 'Abgleich fehlgeschlagen: ' + e.message;
+        if (laut) E.toast({ art: 'ende', titel: 'Cloud', text: cloudInfo });
+      } finally {
+        cloudLauf = null;
+        save(true);
+        if (neu || laut || route()[0] === 'konto') { if (!$('dlg').open && !tippt()) render(); else renderSide(); } else renderStatus();
+      }
+    })();
+    return cloudLauf;
+  }
+  const tippt = () => document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.id !== 'q';
+  function renderStatus(st) {
+    const b = $('syncBtn'); if (!b) return;
+    if (!angemeldet() || !cl().teamId) { b.hidden = !fh; b.textContent = '⇅'; b.title = 'Mit der Team-Datei abgleichen'; return; }
+    const offen = Object.values(cl().dirty).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0);
+    b.hidden = false;
+    b.textContent = st === 'lauf' ? '☁ …' : cloudFehler ? '☁ !' : offen ? '☁ ' + offen : '☁ ✓';
+    b.title = (cloudInfo || 'Cloud') + (offen ? ` · ${offen} Änderungen warten auf Abgleich` : '') + ' – klicken zum Abgleichen';
+  }
+  if (C) {
+    C.beiKonto(k => { if (!k) { cloudInfo = ''; } renderSide(); });
+    window.addEventListener('online', () => cloudAbgleich());
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudAbgleich(); });
+    setInterval(() => { if (!document.hidden) cloudAbgleich(); }, 30000);
+  }
+
+  // Konto-Seite: Anmelden/Registrieren, Team anlegen/beitreten, Status
+  function viewKonto() {
+    const w = [h('div', { class: 'crumb' }, '⌂ Konto & Cloud'), h('h1', null, angemeldet() ? 'Konto & Team' : 'Anmelden')];
+    if (!C) return w.concat(h('div', { class: 'card' }, 'Die Cloud ist nicht verfügbar.'));
+    const k = C.konto(), c = cl();
+    const melde = (el, t, ok) => { el.textContent = t; el.style.color = ok ? 'var(--good)' : 'var(--crit)'; };
+    if (!k) {
+      const reg = S.ui.kontoModus === 'registrieren';
+      const out = h('p', { class: 'note', role: 'status' });
+      const email = h('input', { type: 'email', required: true, autocomplete: 'email', placeholder: 'name@schule.it' });
+      const pw = h('input', { type: 'password', required: true, minlength: '8', autocomplete: reg ? 'new-password' : 'current-password', placeholder: reg ? 'mindestens 8 Zeichen' : '' });
+      const name = h('input', { type: 'text', autocomplete: 'name', placeholder: 'z. B. G. Peer', value: S.ich.name || '' });
+      const knopf = h('button', { class: 'primary', type: 'submit' }, reg ? 'Konto anlegen' : 'Anmelden');
+      const form = h('form', { class: 'list', style: 'max-width:420px', onsubmit: async ev => {
+        ev.preventDefault(); knopf.disabled = true; melde(out, 'Bitte warten …', true);
+        try {
+          if (reg) { if (!name.value.trim()) throw new Error('Bitte einen Namen eingeben.'); await C.registrieren(email.value, pw.value, name.value); S.ich.name = name.value.trim(); }
+          else { await C.anmelden(email.value, pw.value); if (!S.ich.name && C.konto().user.name) S.ich.name = C.konto().user.name; }
+          S.cloud = {}; profilPruefen(); save(true); await cloudAbgleich(true); render();
+        } catch (e) { melde(out, e.message); knopf.disabled = false; }
+      } },
+        reg ? h('label', { class: 'fld' }, h('span', null, 'Dein Name (sehen die Kollegen)'), name) : null,
+        h('label', { class: 'fld' }, h('span', null, 'E-Mail-Adresse'), email),
+        h('label', { class: 'fld' }, h('span', null, 'Passwort'), pw),
+        h('div', { class: 'row', style: 'background:none;padding:0' }, knopf,
+          h('button', { type: 'button', class: 'ghost', onclick: () => { S.ui.kontoModus = reg ? 'anmelden' : 'registrieren'; save(true); render(); } }, reg ? 'Ich habe schon ein Konto' : 'Neu hier? Konto anlegen')),
+        out);
+      w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, reg ? '✨ Konto anlegen' : '☁ Anmelden'),
+        h('p', { class: 'note' }, 'Mit Konto arbeitest du mit deinem Fachlehrer-Team zusammen und hast deine Daten auf PC und Handy. Ohne Konto bleibt alles nur auf diesem Gerät.'), form));
+      w.push(h('section', { class: 'card' }, h('h2', null, '🔒 Datenschutz'),
+        h('p', { class: 'note' }, 'Die Daten liegen in einer eigenen Datenbank (Supabase, Rechenzentrum Frankfurt). Sehen kann sie nur, wer mit dem Einladungscode eurem Team beigetreten ist; private To-dos nur du selbst. Bitte keine Schülerdaten (Namen, Noten) eintragen.')));
+      return w;
+    }
+    const out = h('p', { class: 'note', role: 'status' });
+    const tu = async (fn, ok) => { try { await fn(); if (ok) melde(out, ok, true); await cloudAbgleich(true); render(); } catch (e) { melde(out, e.message); } };
+    if (!c.teamId) {
+      const tn = h('input', { value: 'KFZ-Fachgruppe', 'aria-label': 'Name des Teams' }), code = h('input', { placeholder: 'z. B. B243076FE9', 'aria-label': 'Einladungscode', style: 'text-transform:uppercase' });
+      w.push(h('section', { class: 'card mark', style: '--c:var(--accent)' }, h('h2', null, '👥 Team'),
+        h('p', { class: 'note' }, `Angemeldet als ${k.user.email}. Jetzt ein Team anlegen – oder mit dem Einladungscode einer Kollegin/eines Kollegen beitreten. Was du bisher eingetragen hast, wird dabei ins Team übernommen.`),
+        h('div', { class: 'two' },
+          h('div', { class: 'list' }, h('b', null, 'Neues Team anlegen'), tn, h('button', { class: 'primary', onclick: () => tu(() => C.rpc('team_anlegen', { p_name: tn.value || 'KFZ-Fachgruppe', p_anzeigename: S.ich.name || '' }), 'Team angelegt.') }, 'Team anlegen')),
+          h('div', { class: 'list' }, h('b', null, 'Mit Einladungscode beitreten'), code, h('button', { onclick: () => tu(() => C.rpc('team_beitreten', { p_code: code.value, p_anzeigename: S.ich.name || '' }), 'Beigetreten.') }, 'Beitreten'))),
+        out));
+    } else {
+      const offen = Object.values(c.dirty).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0);
+      w.push(h('section', { class: 'card mark', style: '--c:var(--good)' }, h('h2', null, '👥 ' + (c.teamName || 'Team')),
+        h('div', { class: 'row', style: 'background:none;padding:0' }, h('span', { class: 'note' }, 'Einladungscode für Kolleginnen und Kollegen:'),
+          h('b', { style: 'font-family:var(--display);font-size:22px;letter-spacing:.08em' }, c.code || '–'),
+          h('button', { class: 'small', onclick: () => { try { navigator.clipboard.writeText(c.code); melde(out, 'Code kopiert.', true); } catch (e) {} } }, 'Kopieren'),
+          c.rolle === 'admin' ? h('button', { class: 'small', title: 'Neuen Code erzeugen, der alte gilt dann nicht mehr', onclick: () => tu(() => C.rpc('code_erneuern', { p_team: c.teamId }), 'Neuer Code erzeugt.') }, 'Neuer Code') : null),
+        h('p', { class: 'note' }, 'So kommt jemand dazu: App öffnen → „☁ Anmelden“ → Konto anlegen → Code eingeben.'),
+        h('div', { class: 'list' }, (c.mitglieder || []).map(x => h('div', { class: 'row' }, h('b', null, x.name || '(ohne Namen)'), x.rolle === 'admin' ? h('span', { class: 'badge mut' }, 'Admin') : null, x.ich ? h('span', { class: 'note' }, 'du') : null))),
+        h('div', { class: 'row', style: 'background:none;padding:0' },
+          h('span', { class: 'note', style: cloudFehler ? 'color:var(--crit)' : '' }, (cloudInfo || '') + (offen ? ` · ${offen} Änderungen warten` : '')),
+          h('button', { class: 'small primary', onclick: () => cloudAbgleich(true) }, 'Jetzt abgleichen')),
+        out));
+    }
+    const neuPw = h('input', { type: 'password', minlength: '8', autocomplete: 'new-password', placeholder: 'neues Passwort (mind. 8 Zeichen)', style: 'flex:1 1 200px' });
+    w.push(h('section', { class: 'card' }, h('h2', null, '👤 ' + (S.ich.name || k.user.email)),
+      h('p', { class: 'note' }, 'Angemeldet als ' + k.user.email),
+      h('div', { class: 'row', style: 'background:none;padding:0' }, neuPw, h('button', { class: 'small', onclick: () => tu(() => { if (neuPw.value.length < 8) throw new Error('Mindestens 8 Zeichen.'); return C.passwortAendern(neuPw.value); }, 'Passwort geändert.') }, 'Passwort ändern')),
+      h('div', { class: 'row', style: 'background:none;padding:0' },
+        h('button', { class: 'small', onclick: async () => { await cloudAbgleich(); await C.abmelden(); S.cloud = {}; save(true); render(); } }, 'Abmelden'),
+        h('button', { class: 'small danger', onclick: async () => {
+          const v = await formular('Abmelden und dieses Gerät leeren?', [], {}, { ok: 'Abmelden und leeren', hinweis: 'Für fremde oder gemeinsam genutzte Computer. Deine Daten bleiben in der Cloud und kommen nach dem nächsten Anmelden zurück. Noch nicht abgeglichene Änderungen gehen verloren.' });
+          if (!v) return; await cloudAbgleich(); await C.abmelden();
+          ['arbeitsplatz.v1', 'arbeitsplatz.kalender', 'arbeitsplatz.gefeuert'].forEach(x => { try { localStorage.removeItem(x); } catch (e) {} });
+          location.hash = '#/start'; location.reload();
+        } }, 'Abmelden und Gerät leeren'),
+        c.teamId ? h('button', { class: 'small danger', onclick: async () => {
+          const v = await formular('Team verlassen?', [], {}, { ok: 'Verlassen', hinweis: 'Du siehst die gemeinsamen Einträge danach nicht mehr in der Cloud. Was auf diesem Gerät ist, bleibt.' });
+          if (v) tu(async () => { await C.loeschen(`mitglieder?team_id=eq.${c.teamId}&user_id=eq.${k.user.id}`); c.teamId = ''; }, 'Team verlassen.');
+        } }, 'Team verlassen') : null),
+      out));
+    return w;
+  }
+
   // ---------- Team & Austausch ----------
   let fh = null; // Datei-Handle der Team-Datei
   const fsOk = 'showOpenFilePicker' in window && 'indexedDB' in window;
@@ -1242,6 +1450,9 @@
         h('label', null, 'Digitales Register', h('input', { type: 'url', value: S.ich.register || '', placeholder: 'https://deineschule.digitalesregister.it', onchange: ev => { S.ich.register = ev.target.value.trim(); save(true); renderSide(); } }))),
       h('p', { class: 'note' }, 'Der Name steht bei deinen Einträgen, damit Kolleginnen und Kollegen sehen, von wem eine Änderung kommt.')));
 
+    if (C) w.push(h('section', { class: 'card mark', style: '--c:var(--good)' }, h('h2', null, '☁ Cloud'),
+      h('p', { class: 'note' }, angemeldet() ? (cl().teamId ? `Team „${cl().teamName}“ – ${cloudInfo || 'verbunden'}.` : 'Angemeldet, aber noch in keinem Team.') : 'Mit Konto arbeitet ihr gemeinsam und auf allen Geräten. Die Team-Datei unten wird dann nicht mehr gebraucht.'),
+      h('a', { class: 'chip', href: '#/konto', style: 'align-self:flex-start' }, angemeldet() ? 'Konto & Team öffnen' : 'Anmelden / Konto anlegen')));
     w.push(cardInstallieren());
     w.push(cardFaecher());
     w.push(h('section', { class: 'card' }, h('h2', null, '👥 Fachlehrer-Team', h('span', { class: 'grow' }), h('button', { class: 'small', onclick: () => personDialog() }, '+ Person')),
@@ -1292,7 +1503,7 @@
     const [r, a] = route();
     renderSide();
     const main = $('main'), y = main.scrollTop;
-    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam,
+    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam, konto: viewKonto,
       pinnwand: () => [h('div', { class: 'crumb' }, '⌂ Organisation › Pinnwand'), h('h1', null, 'Pinnwand'), cardPinnwand(0)],
       klasse: () => viewKlasse(a || ''), suche: () => viewSuche(a || '') };
     main.textContent = '';
@@ -1303,7 +1514,7 @@
   $('menuBtn').onclick = () => document.body.classList.toggle('menu');
   document.addEventListener('click', e => { if (document.body.classList.contains('menu') && !e.target.closest('aside') && e.target !== $('menuBtn')) document.body.classList.remove('menu'); });
   window.addEventListener('storage', e => { if (e.key === E.KEY && !$('dlg').open) { S = laden(); render(); } });
-  $('syncBtn').onclick = () => abgleichen(true);
+  $('syncBtn').onclick = () => { if (angemeldet() && cl().teamId) cloudAbgleich(true); else abgleichen(true); };
 
   // Takt: Uhr, Jetzt-Karte, Erinnerungen
   let lastMin = -1;
@@ -1315,6 +1526,7 @@
     if (now.getMinutes() !== lastMin) { lastMin = now.getMinutes(); todoErinnerungen(); if (!busy) render(); }
   }
   E.starten(e => { if (e && e.art === 'kalender' && !$('dlg').open) render(); });
+  if (angemeldet()) setTimeout(() => cloudAbgleich(), 500);
   setInterval(tick, 1000);
   setInterval(() => { if (fh && !document.hidden) abgleichen(false); }, 60000);
   if (fsOk) idb('readonly', st => st.get('teamdatei')).then(hd => { if (hd) { fh = hd; abgleichen(false); renderSide(); } }).catch(() => {});
