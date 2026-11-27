@@ -151,3 +151,30 @@ grant select, insert, update on public.eintraege to authenticated;
 grant select, insert, update on public.profil to authenticated;
 grant execute on function public.team_anlegen(text, text), public.team_beitreten(text, text), public.code_erneuern(uuid) to authenticated;
 revoke execute on function public.team_anlegen(text, text), public.team_beitreten(text, text), public.code_erneuern(uuid) from anon, public;
+
+-- ---------------------------------------------------------------------------------------------
+-- Arbeitsmaterial: Dateispeicher (Supabase Storage), privat.
+-- Jede Datei liegt unter <team_id>/<name>; lesen und schreiben darf nur, wer im Team ist.
+-- Höchstens 20 MB pro Datei (der kostenlose Tarif hat 1 GB Speicher insgesamt).
+insert into storage.buckets (id, name, public, file_size_limit)
+  values ('material', 'material', false, 20971520)
+  on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+create or replace function public.mein_team_ordner(pfad text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from mitglieder where user_id = auth.uid() and team_id::text = split_part(pfad, '/', 1))
+$$;
+
+drop policy if exists material_lesen on storage.objects;
+create policy material_lesen on storage.objects for select to authenticated
+  using (bucket_id = 'material' and public.mein_team_ordner(name));
+drop policy if exists material_hochladen on storage.objects;
+create policy material_hochladen on storage.objects for insert to authenticated
+  with check (bucket_id = 'material' and public.mein_team_ordner(name));
+drop policy if exists material_ersetzen on storage.objects;
+create policy material_ersetzen on storage.objects for update to authenticated
+  using (bucket_id = 'material' and public.mein_team_ordner(name))
+  with check (bucket_id = 'material' and public.mein_team_ordner(name));
+drop policy if exists material_loeschen on storage.objects;
+create policy material_loeschen on storage.objects for delete to authenticated
+  using (bucket_id = 'material' and public.mein_team_ordner(name));

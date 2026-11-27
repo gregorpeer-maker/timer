@@ -93,5 +93,30 @@
     // Zeilen anlegen oder überschreiben (neuere Änderung gewinnt, siehe Trigger in schema.sql)
     upsert: (tabelle, zeilen) => api('/rest/v1/' + tabelle, { method: 'POST', body: zeilen, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } }),
     loeschen: pfad => api('/rest/v1/' + pfad, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }),
+    // Arbeitsmaterial im privaten Speicher „material“ (Pfad: <team_id>/<datei>)
+    async dateiHochladen(pfad, datei) {
+      const t = await token(); if (!t) throw fehler('Nicht angemeldet.', 'abgemeldet');
+      let r;
+      try {
+        r = await fetch(BASIS + '/storage/v1/object/material/' + pfad.split('/').map(encodeURIComponent).join('/'), {
+          method: 'POST', body: datei,
+          headers: { apikey: SCHLUESSEL, Authorization: 'Bearer ' + t, 'Content-Type': datei.type || 'application/octet-stream', 'x-upsert': 'false' } });
+      } catch (e) { throw fehler('Keine Verbindung zur Cloud (offline?).', 'offline'); }
+      if (!r.ok) {
+        let j = null; try { j = await r.json(); } catch (e) {}
+        const m = j && (j.message || j.error) || 'Fehler ' + r.status;
+        if (/bucket not found/i.test(m)) throw fehler('Der Dateispeicher ist noch nicht eingerichtet (cloud/schema.sql erneut ausführen).');
+        if (/maximum allowed size|too large|payload/i.test(m) || r.status === 413) throw fehler('Die Datei ist zu groß (höchstens 20 MB). Große Dateien bitte in OneDrive ablegen und als Link eintragen.');
+        throw fehler(meldung(j, r.status), r.status);
+      }
+    },
+    // zeitlich begrenzter Link zum Öffnen/Herunterladen (1 Stunde)
+    async dateiLink(pfad, name) {
+      const j = await api('/storage/v1/object/sign/material/' + pfad.split('/').map(encodeURIComponent).join('/'), { method: 'POST', body: { expiresIn: 3600 } });
+      const u = j && (j.signedURL || j.signedUrl);
+      if (!u) throw fehler('Kein Link erhalten.');
+      return BASIS + '/storage/v1' + u + (name ? '&download=' + encodeURIComponent(name) : '');
+    },
+    dateiLoeschen: pfad => api('/storage/v1/object/material/' + pfad.split('/').map(encodeURIComponent).join('/'), { method: 'DELETE' }),
   };
 })();

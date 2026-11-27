@@ -178,6 +178,16 @@
     .now .rest { font-size: 30px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* Lehrplan & Material */
+  .lpgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 22px; }
+  .lpgrid ul { margin: 4px 0 0; padding-left: 18px; } .lpgrid li { margin: 2px 0; }
+  .card.lp { box-shadow: inset 3px 0 0 var(--c, var(--accent)); }
+  .mat { display: flex; flex-direction: column; gap: 4px; }
+  .matrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .matlink { display: inline-flex; align-items: center; gap: 8px; background: var(--panel2); padding: 5px 10px; text-align: left; max-width: 100%; }
+  .matlink .matt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; color: var(--accent); }
+  td .mat { margin-top: 4px; } td .matlink { padding: 2px 8px; font-size: 13px; }
+
   /* Schalter (ein/aus) */
   .switches { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; padding-top: 12px; border-top: 1px solid var(--line); }
   .sw { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; user-select: none; position: relative; }
@@ -243,7 +253,13 @@
   * { scrollbar-width: thin; scrollbar-color: #2a2a33 transparent; }
   .erin { background: var(--panel2) !important; border-radius: 14px !important; }
 
-  @media print { aside, .top, button { display: none !important; } .shell { display: block; } main { overflow: visible; } }
+  @media print {
+    aside, .top, button, .noprint, .erin-box, .banner, .chips { display: none !important; }
+    :root { --bg: #fff; --panel: #fff; --panel2: #fff; --fg: #000; --muted: #444; --line: #bbb; }
+    body { background: #fff; color: #000; } .shell { display: block; } main { overflow: visible; padding: 0; }
+    .card { break-inside: avoid; background: #fff !important; box-shadow: none !important; } .matt { color: #000 !important; }
+    button.matlink { display: inline-flex !important; border: 0; padding: 0; background: none; }
+  }
 </style>
 </head>
 <body>
@@ -265,6 +281,7 @@
 <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
 <input type="file" id="icsIn" accept=".ics,text/calendar" hidden>
+<input type="file" id="matIn" hidden>
 
 <script src="erinnerung.js"></script>
 <script src="cloud.js"></script>
@@ -273,7 +290,7 @@
   'use strict';
   const E = window.Erinnerung;
   const $ = id => document.getElementById(id);
-  const COLS = ['stoff', 'aufgaben', 'notizen', 'termine', 'personen', 'log'];
+  const COLS = ['stoff', 'aufgaben', 'notizen', 'termine', 'personen', 'log', 'lehrplan', 'material'];
   const WT = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WTL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   const FORMAT = 'kfz-arbeitsplatz-team';
   const { pad, norm, uhr } = E;
@@ -440,6 +457,7 @@
       E.alle().filter(f => f.extra).map(f => nav('#/fach/' + f.k, f.icon, f.name, alive('stoff').filter(x => x.fach === f.k && x.status !== 'fertig').length || '', fachC(f.k))),
       h('div', { class: 'sec' }, 'Organisation'),
       nav('#/plan', '🗓', 'Stundenplan & Klingel'),
+      nav('#/lehrplan', '📘', 'Lehrplan', alive('lehrplan').filter(x => x.status !== 'fertig').length || ''),
       nav('#/termine', '📌', 'Termine', termine || ''),
       nav('#/pinnwand', '💬', 'Pinnwand', alive('notizen').length || ''),
       nav('#/team', '👥', 'Team & Austausch'),
@@ -795,7 +813,9 @@
           const g = gebraucht(x.id), st = stLabel[x.status] || stLabel.offen;
           return h('tr', { class: x === cur ? 'cur' : x.status === 'fertig' ? 'done' : '' },
             h('td', { class: 'tm' }, i + 1),
-            h('td', null, h('div', { style: 'font-weight:600' }, x.titel, x === cur ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'aktuell') : null),
+            h('td', null, h('div', { style: 'font-weight:600' }, x.titel, x === cur ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'aktuell') : null,
+                x.lehrplanId ? h('a', { href: '#/lehrplan/' + k, title: 'Aus dem Lehrplan – dort bearbeiten', style: 'margin-left:6px;text-decoration:none' }, '📘') : null),
+              x.lehrplanId && materialVon(x.lehrplanId).length ? materialListe({ id: x.lehrplanId }, true) : null,
               x.hinweis ? h('div', { class: 'note' }, x.hinweis) : null, x.von && x.von !== S.ich.name ? h('div', { class: 'note' }, 'geändert von ' + x.von) : null),
             h('td', { class: 'tm', title: 'gebraucht / geplant' }, `${g} / ${x.std || 0}`, g > (+x.std || 0) && x.std ? h('span', { style: 'color:var(--crit)' }, ' !') : null),
             h('td', null, h('button', { class: 'small badge ' + st[1], title: 'Stand wechseln', onclick: () => put('stoff', Object.assign({}, x, { status: x.status === 'offen' || !x.status ? 'laeuft' : x.status === 'laeuft' ? 'fertig' : 'offen' })) }, st[0])),
@@ -1068,6 +1088,7 @@
     save(true); render();
     E.toast({ art: 'pause', titel: 'WebUntis übernommen', text: `${neuerPlan.length} Stunden eingetragen` + (ohneSlot ? `, ${ohneSlot} passten zu keiner Klingelzeit` : '') + '. Bitte im Wochenplan kontrollieren.' });
   }
+  $('matIn').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; dateiHoch(f); };
   $('icsIn').onchange = async ev => {
     const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
     try { const k = E.kalenderSpeichern(await f.text()); render(); E.toast({ art: 'pause', titel: 'WebUntis-Kalender geladen', text: `${k.ev.length} Stunden bis ${tagLabel(k.bis)} – bitte die Zuordnung der Fächer prüfen.` }); }
@@ -1122,6 +1143,152 @@
         h('button', { class: 'small', onclick: () => icsImport(k.ev) }, 'Als feste Wochenvorlage übernehmen'),
         h('button', { class: 'small danger', onclick: () => { E.kalenderEntfernen(); render(); } }, 'Kalender entfernen')) : null);
   }
+
+  // ---------- Lehrplan & Arbeitsmaterial ----------
+  // Lehrplan: Fach → Stufe → Einheiten (Lernfeld/Thema) mit Kompetenzen, Lernzielen, Inhalten, Methoden, Leistungsnachweis.
+  // Material: Links (z. B. OneDrive) oder Dateien im privaten Cloud-Speicher, jeweils an einer Einheit.
+  const LP_STATUS = { entwurf: ['Entwurf', 'mut'], arbeit: ['in Arbeit', 'warn'], fertig: ['fertig', 'good'] };
+  const LP_FELDER = [['kompetenzen', 'Kompetenzen'], ['lernziele', 'Lernziele'], ['inhalte', 'Inhalte'], ['methoden', 'Methoden'], ['nachweis', 'Leistungsnachweis']];
+  const numerisch = (a, b) => a.localeCompare(b, 'de', { numeric: true });
+  const einheiten = (f, st) => alive('lehrplan').filter(x => x.fach === f && norm(x.stufe) === norm(st)).sort((a, b) => (a.pos || 0) - (b.pos || 0) || a.upd - b.upd);
+  const stufenVon = f => [...new Set(alive('lehrplan').filter(x => x.fach === f && x.stufe).map(x => x.stufe.trim()))].sort(numerisch);
+  const materialVon = id => alive('material').filter(m => m.lehrplanId === id && typeof m.titel === 'string').sort((a, b) => a.upd - b.upd);
+  const punkte = t => String(t || '').split(/\n+/).map(s => s.replace(/^\s*[-•*–]\s*/, '').trim()).filter(Boolean);
+  const teamNamen = () => [...new Set([...personenNamen(), ...((S.cloud && S.cloud.mitglieder) || []).map(m => m.name)].filter(Boolean))];
+  const groesse = b => b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+  const dateiIcon = (typ, name) => /pdf/i.test(typ + name) ? '📕' : /presentation|pptx?$|key$/i.test(typ + name) ? '📊' : /sheet|xlsx?$|csv$/i.test(typ + name) ? '📗'
+    : /word|docx?$|odt$/i.test(typ + name) ? '📘' : /image/i.test(typ) ? '🖼' : /video/i.test(typ) ? '🎬' : '📄';
+
+  async function einheitDialog(f, st, x) {
+    const v = await formular(x ? 'Einheit bearbeiten' : `Neue Einheit · ${E.fach(f).name} · ${st}`, [
+      { k: 'titel', label: 'Titel (Lernfeld / Thema)', req: true, ph: 'z. B. Lernfeld 3: Elektrische Systeme prüfen' },
+      { k: 'std', label: 'Stunden', type: 'number', min: '0', step: '1' },
+      { k: 'status', label: 'Stand der Ausarbeitung', type: 'select', options: Object.entries(LP_STATUS).map(([k, [l]]) => [k, l]) },
+      { k: 'zustaendig', label: 'Wer arbeitet daran?', list: teamNamen(), ph: S.ich.name || 'Name' },
+      { k: 'kompetenzen', label: 'Kompetenzen – eine Zeile pro Punkt', type: 'textarea' },
+      { k: 'lernziele', label: 'Lernziele – „Die Schüler/innen können …“', type: 'textarea' },
+      { k: 'inhalte', label: 'Inhalte', type: 'textarea' },
+      { k: 'methoden', label: 'Methoden / Sozialformen', type: 'textarea' },
+      { k: 'nachweis', label: 'Leistungsnachweis', type: 'textarea' },
+    ], x || { status: 'entwurf', zustaendig: S.ich.name || '' }, { loeschen: !!x });
+    if (v === 'del') { materialVon(x.id).forEach(m => materialWeg(m, true)); drop('lehrplan', x.id); return; }
+    if (!v) return;
+    const pos = x ? x.pos : Math.max(0, ...einheiten(f, st).map(e => e.pos || 0)) + 1;
+    put('lehrplan', Object.assign({}, x || {}, v, { fach: f, stufe: x ? x.stufe : st, pos, std: Math.max(0, parseInt(v.std, 10) || 0) }));
+  }
+  async function linkDialog(einheit) {
+    const v = await formular('Link zu Material', [
+      { k: 'titel', label: 'Bezeichnung', req: true, ph: 'z. B. Arbeitsblatt Zündanlage (Word)' },
+      { k: 'url', label: 'Link (OneDrive, Teams, Webseite …)', type: 'url', req: true, ph: 'https://…' },
+    ], {}, { hinweis: 'In OneDrive: Datei → „Teilen“ → „Link kopieren“. Damit Kolleg/innen sie öffnen können, muss die Freigabe für sie gelten.' });
+    if (!v) return;
+    if (!/^https:\/\/\S+$/i.test(v.url)) { E.toast({ art: 'ende', titel: 'Link', text: 'Der Link muss mit https:// beginnen.' }); return; }
+    put('material', { lehrplanId: einheit.id, art: 'link', titel: v.titel, url: v.url });
+  }
+  let matZiel = null;
+  function dateiWaehlen(einheit) {
+    if (!angemeldet() || !cl().teamId) { E.toast({ art: 'ende', titel: 'Dateien hochladen', text: 'Dafür bitte anmelden und einem Team beitreten (☁ oben rechts). Links gehen auch ohne.' }); return; }
+    matZiel = einheit; $('matIn').click();
+  }
+  async function dateiHoch(datei) {
+    const einheit = matZiel; matZiel = null; if (!einheit || !datei) return;
+    if (datei.size > 20 * 1048576) { E.toast({ art: 'ende', titel: 'Zu groß', text: 'Höchstens 20 MB. Große Dateien bitte in OneDrive ablegen und als Link eintragen.' }); return; }
+    const sicher = datei.name.normalize('NFKD').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '_').slice(-80) || 'datei';
+    const pfad = `${cl().teamId}/${uid()}-${sicher}`;
+    E.toast({ art: 'pause', titel: 'Lade hoch …', text: datei.name });
+    try {
+      await C.dateiHochladen(pfad, datei);
+      put('material', { lehrplanId: einheit.id, art: 'datei', titel: datei.name, pfad, groesse: datei.size, typ: datei.type || '' });
+      E.toast({ art: 'pause', titel: 'Hochgeladen', text: datei.name });
+    } catch (e) { E.toast({ art: 'ende', titel: 'Hochladen fehlgeschlagen', text: e.message }); }
+  }
+  async function materialOeffnen(m) {
+    if (m.art === 'link') { window.open(m.url, '_blank', 'noopener'); return; }
+    if (!angemeldet()) { E.toast({ art: 'ende', titel: 'Material', text: 'Zum Öffnen von Dateien bitte anmelden.' }); return; }
+    const fenster = window.desk ? null : window.open('', '_blank');   // sofort öffnen, sonst blockt der Browser das Fenster
+    try { const u = await C.dateiLink(m.pfad); if (fenster) fenster.location = u; else window.open(u, '_blank'); }
+    catch (e) { if (fenster) fenster.close(); E.toast({ art: 'ende', titel: 'Material', text: e.message }); }
+  }
+  async function materialWeg(m, still) {
+    if (!still) { const v = await formular('Material entfernen?', [], {}, { ok: 'Entfernen', hinweis: `„${m.titel}“ wird für das ganze Team entfernt.` + (m.art === 'datei' ? ' Die Datei wird gelöscht.' : '') }); if (!v) return; }
+    if (m.art === 'datei' && m.pfad && angemeldet()) C.dateiLoeschen(m.pfad).catch(() => {});
+    drop('material', m.id);
+  }
+  function materialListe(einheit, kompakt) {
+    const l = materialVon(einheit.id);
+    return h('div', { class: 'mat' },
+      l.map(m => h('div', { class: 'matrow' },
+        h('button', { class: 'matlink', title: m.art === 'link' ? m.url : 'Datei öffnen', onclick: () => materialOeffnen(m) },
+          h('span', null, m.art === 'link' ? '🔗' : dateiIcon(m.typ || '', m.titel)), h('span', { class: 'matt' }, m.titel)),
+        h('span', { class: 'note' }, [m.art === 'datei' && m.groesse ? groesse(m.groesse) : m.art === 'link' ? (/sharepoint|onedrive|1drv/i.test(m.url) ? 'OneDrive' : 'Link') : '', m.autor].filter(Boolean).join(' · ')),
+        kompakt ? null : h('button', { class: 'small ghost', 'aria-label': 'Material entfernen', title: 'Entfernen', onclick: () => materialWeg(m) }, '✕'))),
+      kompakt ? null : h('div', { class: 'btns', style: 'margin-left:0' },
+        h('button', { class: 'small', onclick: () => linkDialog(einheit) }, '+ Link'),
+        h('button', { class: 'small', onclick: () => dateiWaehlen(einheit), title: angemeldet() ? 'Datei bis 20 MB in die Cloud laden' : 'Nur mit Konto' }, '+ Datei')));
+  }
+  async function inStoffverteilung(f, st) {
+    const l = einheiten(f, st); if (!l.length) return;
+    const ks = klassen();
+    const v = await formular('In die Stoffverteilung übernehmen', [{ k: 'klasse', label: 'Für Klasse', req: true, list: ks, def: ks[0] || '' }], {}, { ok: 'Übernehmen',
+      hinweis: `Die ${l.length} Einheiten von „${st}“ werden als Themen eingetragen. Was schon aus diesem Lehrplan übernommen wurde, kommt nicht doppelt.` });
+    if (!v) return;
+    let p = Math.max(0, ...stoffVon(f, v.klasse).map(s => s.pos || 0)), n = 0;
+    l.forEach(x => {
+      if (stoffVon(f, v.klasse).some(s => s.lehrplanId === x.id)) return;
+      put('stoff', { fach: f, klasse: v.klasse, titel: x.titel, std: x.std || 0, hinweis: punkte(x.lernziele).slice(0, 2).join(' · '), status: 'offen', pos: ++p, lehrplanId: x.id }, true); n++;
+    });
+    S.ui.fk[f] = v.klasse; save(true);
+    E.toast({ art: 'pause', titel: 'Übernommen', text: `${n} Themen in ${E.fach(f).name} · ${v.klasse}.` });
+    location.hash = '#/fach/' + f;
+  }
+
+  function viewLehrplan(arg) {
+    const f = E.alle().some(x => x.k === arg) ? arg : (S.ui.lpFach && E.alle().some(x => x.k === S.ui.lpFach) ? S.ui.lpFach : 'FT');
+    if (S.ui.lpFach !== f) { S.ui.lpFach = f; save(true); }
+    S.ui.lpStufe = S.ui.lpStufe || {};
+    const sts = stufenVon(f); let st = S.ui.lpStufe[f];
+    if (!st || !sts.some(x => norm(x) === norm(st))) st = sts[0] || '';
+    const setSt = x => { S.ui.lpStufe[f] = x; save(true); render(); };
+    const neueStufe = async () => {
+      const v = await formular('Stufe hinzufügen', [{ k: 'stufe', label: 'Stufe / Klassenstufe', req: true, list: ['Grundstufe', '1. Klasse', '2. Klasse', '3. Klasse', '4. Klasse', 'Fachstufe'] }], {}, { ok: 'Weiter' });
+      if (v) { S.ui.lpStufe[f] = v.stufe; save(true); einheitDialog(f, v.stufe); }
+    };
+    const w = [h('div', { class: 'crumb' }, '⌂ Lehrplan › ' + E.fach(f).name), h('h1', null, '📘 Lehrplan'),
+      h('div', { class: 'chips', style: 'padding:0' }, E.alle().map(x => h('a', { class: 'chip' + (x.k === f ? ' on' : ''), href: '#/lehrplan/' + x.k, style: fachC(x.k) }, F(x.k), x.name)))];
+    w.push(h('div', { class: 'chips', style: 'padding:0' }, sts.map(x => h('button', { class: 'chip' + (norm(x) === norm(st) ? ' on' : ''), onclick: () => setSt(x) }, x)),
+      h('button', { class: 'chip', onclick: neueStufe }, '+ Stufe')));
+    if (!st) {
+      w.push(h('section', { class: 'card' }, h('h2', null, `Noch kein Lehrplan für ${E.fach(f).name}`),
+        h('p', { class: 'note' }, 'Lege eine Stufe an (z. B. „Grundstufe“ oder „2. Klasse“) und darin die Einheiten – Lernfelder oder Themen – mit Kompetenzen, Lernzielen, Inhalten, Methoden und Leistungsnachweis. Material hängt ihr direkt an die Einheit. Mit „In die Stoffverteilung übernehmen“ wird daraus die Planung einer Klasse.'),
+        h('button', { class: 'primary', style: 'align-self:flex-start', onclick: neueStufe }, '+ Stufe anlegen')));
+      return w;
+    }
+    const l = einheiten(f, st), fertig = l.filter(x => x.status === 'fertig').length, std = l.reduce((a, x) => a + (+x.std || 0), 0);
+    w.push(h('section', { class: 'card', style: fachC(f) }, h('h2', null, `${E.fach(f).icon} ${E.fach(f).name} · ${st}`, h('span', { class: 'grow' }),
+        h('button', { class: 'small primary', onclick: () => einheitDialog(f, st) }, '+ Einheit'),
+        l.length ? h('button', { class: 'small', onclick: () => inStoffverteilung(f, st) }, '⇢ In Stoffverteilung übernehmen') : null,
+        l.length ? h('button', { class: 'small', onclick: () => window.print() }, '🖨 Drucken / PDF') : null),
+      h('p', { class: 'note' }, l.length ? `${l.length} Einheiten · ${std} Stunden · ${fertig} von ${l.length} fertig ausgearbeitet` : 'Noch keine Einheiten.'),
+      l.length ? h('div', { class: 'prog' }, h('i', { style: `width:${fertig / l.length * 100}%` })) : null));
+    l.forEach((x, i) => {
+      const s = LP_STATUS[x.status] || LP_STATUS.entwurf;
+      const felder = LP_FELDER.filter(([k]) => punkte(x[k]).length);
+      w.push(h('section', { class: 'card lp', style: fachC(f) },
+        h('h2', null, h('span', { class: 'tm', style: 'font-size:15px' }, (i + 1) + '.'), h('span', null, x.titel), h('span', { class: 'grow' }),
+          x.std ? h('span', { class: 'note' }, x.std + ' Std.') : null,
+          h('button', { class: 'small badge ' + s[1], title: 'Stand wechseln', onclick: () => put('lehrplan', Object.assign({}, x, { status: x.status === 'fertig' ? 'entwurf' : x.status === 'arbeit' ? 'fertig' : 'arbeit' })) }, s[0])),
+        x.zustaendig || (x.von && x.von !== S.ich.name) ? h('p', { class: 'note' }, [x.zustaendig ? '👤 ' + x.zustaendig : '', x.von && x.von !== S.ich.name ? 'zuletzt geändert von ' + x.von : ''].filter(Boolean).join(' · ')) : null,
+        felder.length ? h('div', { class: 'lpgrid' }, felder.map(([k, lab]) => h('div', null, h('div', { class: 'grp' }, lab), h('ul', null, punkte(x[k]).map(p => h('li', null, p))))))
+          : h('p', { class: 'empty' }, 'Noch nicht ausgearbeitet – „✎“ zum Ausfüllen.'),
+        h('div', { class: 'grp' }, '📎 Arbeitsmaterial'), materialListe(x),
+        h('div', { class: 'btns noprint' },
+          h('button', { class: 'small ghost', disabled: i === 0, 'aria-label': 'Nach oben', onclick: () => tauschLp(x, l[i - 1]) }, '↑'),
+          h('button', { class: 'small ghost', disabled: i === l.length - 1, 'aria-label': 'Nach unten', onclick: () => tauschLp(x, l[i + 1]) }, '↓'),
+          h('button', { class: 'small', onclick: () => einheitDialog(f, st, x) }, '✎ Bearbeiten'))));
+    });
+    return w;
+  }
+  function tauschLp(a, b) { const pa = a.pos || 0, pb = b.pos || 0; put('lehrplan', Object.assign({}, a, { pos: pb === pa ? pb + 1 : pb }), true); put('lehrplan', Object.assign({}, b, { pos: pa })); }
 
   // ---------- Cloud (Supabase): Konto, Team, Abgleich ----------
   // Gemeinsame Einträge (S.team) gehen in die Tabelle eintraege, Stundenplan/Klingel/Einstellungen ins eigene Profil.
@@ -1486,9 +1653,14 @@
     const todos = todoGruppen().all.filter(x => has(x.titel, x.notiz, x.klasse));
     const termine = alive('termine').filter(x => has(x.titel, x.klasse, x.art));
     const notizen = alive('notizen').filter(x => has(x.text, x.klasse));
+    const lp = alive('lehrplan').filter(x => has(x.titel, x.stufe, x.kompetenzen, x.lernziele, x.inhalte, x.methoden, x.nachweis));
+    const mats = alive('material').filter(x => has(x.titel));
     const w = [h('div', { class: 'crumb' }, '⌂ Suche'), h('h1', null, `Suche: „${q}“`)];
     if (stoff.length) w.push(h('section', { class: 'card' }, h('h2', null, '📚 Themen'), h('div', { class: 'list' }, stoff.map(x =>
       h('a', { class: 'row', href: '#/fach/' + x.fach, style: 'color:inherit;text-decoration:none', onclick: () => { S.ui.fk[x.fach] = x.klasse; save(true); } }, F(x.fach), h('span', { class: 'kl' }, x.klasse), h('span', null, x.titel), h('span', { class: 'badge mut' }, x.status || 'offen'))))));
+    if (lp.length || mats.length) w.push(h('section', { class: 'card' }, h('h2', null, '📘 Lehrplan & Material'), h('div', { class: 'list' },
+      lp.map(x => h('a', { class: 'row', href: '#/lehrplan/' + x.fach, style: 'color:inherit;text-decoration:none', onclick: () => { S.ui.lpStufe = Object.assign(S.ui.lpStufe || {}, { [x.fach]: x.stufe }); save(true); } }, F(x.fach), h('span', { class: 'kl' }, x.stufe), h('span', null, x.titel))),
+      mats.map(m => h('button', { class: 'row', style: 'text-align:left', onclick: () => materialOeffnen(m) }, m.art === 'link' ? '🔗' : '📄', h('span', null, m.titel))))));
     if (todos.length) w.push(h('section', { class: 'card' }, h('h2', null, '✅ To-dos'), h('div', { class: 'list' }, todos.map(todoZeile))));
     if (termine.length) w.push(h('section', { class: 'card' }, h('h2', null, '📌 Termine'), h('div', { class: 'list' }, termine.map(terminZeile))));
     if (notizen.length) w.push(h('section', { class: 'card' }, h('h2', null, '💬 Pinnwand'), h('div', { class: 'list' }, notizen.map(pinZeile))));
@@ -1503,7 +1675,7 @@
     const [r, a] = route();
     renderSide();
     const main = $('main'), y = main.scrollTop;
-    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam, konto: viewKonto,
+    const views = { start: viewStart, todo: viewTodo, fach: () => viewFach(a), plan: viewPlan, termine: viewTermine, team: viewTeam, konto: viewKonto, lehrplan: () => viewLehrplan(a),
       pinnwand: () => [h('div', { class: 'crumb' }, '⌂ Organisation › Pinnwand'), h('h1', null, 'Pinnwand'), cardPinnwand(0)],
       klasse: () => viewKlasse(a || ''), suche: () => viewSuche(a || '') };
     main.textContent = '';

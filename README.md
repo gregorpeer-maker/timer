@@ -26,6 +26,8 @@ Fächer: KFZ-Fachtheorie (FT), Elektrotechnik (ET), Fachrechnen (FR), Praxis (PX
 - **Erinnerungen:** x Minuten vor Stundenende, beim Klingeln, bei Pausenbeginn, kurz vor Pausenende, vor der Pausenaufsicht und zum Feierabend – mit Gong, Hinweis im Fenster und Systemmitteilung. Doppelstunden werden zusammengefasst. „Heute stumm“ für Ausflugstage.
 - **Wie liefen deine Stunden?** Nach jeder Stunde ein Klick (geschafft / nicht ganz / fiel aus) – das Thema rückt in der Stoffverteilung weiter.
 - **Stoffverteilung** pro Fach und Klasse, mit geplanten und gebrauchten Stunden; Themen lassen sich aus einer anderen Klasse übernehmen.
+- **Lehrplan:** pro Fach und Stufe (z. B. Grundstufe, 2. Klasse) Einheiten mit Kompetenzen, Lernzielen, Inhalten, Methoden, Leistungsnachweis, Stunden, Stand der Ausarbeitung und Zuständigkeit. „In Stoffverteilung übernehmen“ macht daraus die Planung einer Klasse; „Drucken / PDF“ für die Abgabe.
+- **Arbeitsmaterial:** an jeder Lehrplan-Einheit als Link (z. B. OneDrive) oder als Datei bis 20 MB im Cloud-Speicher; erscheint auch beim Thema in der Stoffverteilung.
 - **Klassenansicht:** Stand aller Fächer einer Klasse auf einen Blick.
 - **To-do-Liste:** getrennt nach ★ wichtig / ☆ nicht wichtig, jeweils zeitlich sortiert (überfällig, heute, morgen, diese Woche, später). Mit Uhrzeit kommt eine Erinnerung. To-dos sind standardmäßig privat; Team-Aufgaben können einer Person zugewiesen werden.
 - **Termine** (Prüfungen, Abgaben, Konferenzen) und **Pinnwand** für Absprachen.
